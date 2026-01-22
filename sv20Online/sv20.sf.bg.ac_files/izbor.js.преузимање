@@ -1,0 +1,145 @@
+﻿function showIzbor(source, width, height, page) {
+
+    if ($("#modal1").is(":visible")) {
+        showIzbor2(source, width, height, page);
+        return;
+    }
+
+    $("#modal1").show();
+    $("#show_modal").click();
+
+    $("#iframeidModalG").height(height);
+    $("#iframeidModalG").width(width);
+    $("#iframeidModalG").attr("src", source);
+
+    var func = function () { $('#iframeidModalG')[0].contentWindow.initParentPage(page); };
+    if ($('#iframeidModalG')[0].addEventListener)
+        $('#iframeidModalG')[0].addEventListener('load', func, true);
+    else if ($('#iframeidModalG')[0].attachEvent)
+        $('#iframeidModalG')[0].attachEvent('onload', func);
+
+    $("#cont_modal1").height(parseInt(height) + 10);
+    $("#cont_modal1").width(parseInt(width) + 10);
+    $("#modal_iframe").show();
+
+}
+
+
+function showModalDiv(source, width, height) {
+
+    if ($("#modal1").is(":visible")) {
+        showModalDiv2(source, width, height);
+        return;
+    }
+
+    $("#modal1").show();
+    $("#show_modal").click();
+
+    $("#modal_div").html(source);
+
+    $("#modal_div").height(height);
+    $("#modal_div").width(width);
+    $("#modal_div").attr("src", source);
+    $("#cont_modal1").height(parseInt(height) + 10);
+    $("#cont_modal1").width(parseInt(width) + 10);
+
+
+
+    $("#modal_div").show();
+}
+
+function sakrijModal() {
+
+    if ($("#modal2").is(":visible")) {
+        sakrijModal2();
+        return;
+    }
+
+    $("#modal1").hide();
+
+    $("#modal_iframe").hide();
+    $("#modal_div").hide();
+    $("#modal_div").html("");
+
+    if ($("#iframeidModalG").length == 0) return;
+    var frame = $("#iframeidModalG")[0];
+    
+    frameDoc = frame.contentDocument || frame.contentWindow.document;
+    try{
+        frameDoc.removeChild(frameDoc.documentElement);
+    }
+    catch(err)
+    {
+    
+    }
+
+    //$("#iframeidModalG").removeAttr("src");
+    
+    parent.modalIzlaz();
+}
+
+
+
+
+
+function showIzbor2(source, width, height, page) {
+
+
+    $("#modal2").show();
+    $("#show_modal2").click();
+
+    $("#iframeidModalG2").height(height);
+    $("#iframeidModalG2").width(width);
+    $("#iframeidModalG2").attr("src", source);
+
+    var func = function () { $('#iframeidModalG2')[0].contentWindow.initParentPage(page); };
+    if ($('#iframeidModalG2')[0].addEventListener)
+        $('#iframeidModalG2')[0].addEventListener('load', func, true);
+    else if ($('#iframeidModalG2')[0].attachEvent)
+        $('#iframeidModalG2')[0].attachEvent('onload', func);
+
+    $("#cont_modal2").height(parseInt(height) + 10);
+    $("#cont_modal2").width(parseInt(width) + 10);
+    $("#modal_iframe2").show();
+
+}
+
+
+function showModalDiv2(source, width, height) {
+
+
+    $("#modal2").show();
+    $("#show_modal2").click();
+
+    $("#modal_div2").html(source);
+
+    $("#modal_div2").height(height);
+    $("#modal_div2").width(width);
+    $("#modal_div2").attr("src", source);
+    $("#cont_modal2").height(parseInt(height) + 10);
+    $("#cont_modal2").width(parseInt(width) + 10);
+
+
+
+    $("#modal_div2").show();
+}
+
+function sakrijModal2() {
+
+    $("#modal2").hide();
+
+    $("#modal_iframe2").hide();
+    $("#modal_div2").hide();
+    $("#modal_div2").html("");
+
+
+
+    var frame = $("#iframeidModalG2")[0];
+    frameDoc = frame.contentDocument || frame.contentWindow.document;
+    frameDoc.removeChild(frameDoc.documentElement);
+
+
+    //$("#iframeidModalG").removeAttr("src");
+    
+    parent.modalIzlaz2();
+}

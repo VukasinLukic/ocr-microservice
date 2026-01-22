@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir /s /b \"C:\\\\Users\\\\INSOMNIA\\\\DataspellProjects\\\\Ocr\\\\sv20-ocr-service\")",
+      "Bash(pip install:*)",
+      "Bash(python -m pip install:*)",
+      "Bash(where:*)",
+      "Bash(py --version)",
+      "Bash(py -m pip install:*)",
+      "Bash(py download_models.py:*)",
+      "Bash(set PYTHONIOENCODING=utf-8:*)",
+      "Bash(py -X utf8 download_models.py:*)",
+      "Bash(py -c:*)",
+      "WebSearch"
+    ]
+  }
+}

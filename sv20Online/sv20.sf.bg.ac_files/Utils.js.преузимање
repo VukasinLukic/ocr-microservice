@@ -1,0 +1,386 @@
+﻿function convertMyListToOptions(selCtrl, sOptions) {
+
+    var options = [];
+    selCtrl.options.length = 0;
+
+    if (sOptions != "|" && typeof sOptions != 'undefined')
+        options = ("0~--------|" + sOptions).split('|');
+    else
+        options = ("0~--------|").split('|');
+
+    var duzina = options.length;
+
+    if (sOptions == "" || sOptions == "|" || typeof sOptions == 'undefined')
+        duzina = options.length - 1;
+
+    for (i = 0; i < duzina; i++) {
+        var anOption = document.createElement("OPTION");
+
+        try {
+            selCtrl.options.add(anOption);
+
+        }
+        catch (ex) {
+            selCtrl.options.add(anOption, null);
+
+        }
+
+        anOption.text = options[i].split('~')[1];
+        anOption.value = options[i].split('~')[0];
+    }
+}
+
+function convertMyListToOptions2(selCtrl, sOptions) {
+
+    var options = [];
+    selCtrl.options.length = 0;
+    
+    options = (sOptions).split('|');
+
+    var duzina = options.length;
+
+    if (sOptions == "")
+        duzina = options.length - 1;
+
+    for (i = 0; i < duzina; i++) {
+        var anOption = document.createElement("OPTION");
+
+        try {
+            selCtrl.options.add(anOption);
+
+        }
+        catch (ex) {
+            selCtrl.options.add(anOption, null);
+
+        }
+
+        anOption.text = options[i].split('~')[1];
+        anOption.value = options[i].split('~')[0];
+    }
+}
+
+function convertMyListToAutocompleate(inpCtrl, sOptions, imeFunkcije, brojSlovaZaAutocomplete) {
+
+    var options = [];
+
+    options = sOptions.split('|');
+
+    var availableTags = [];
+
+    for (i = 0; i < options.length; i++) {
+        availableTags[i] = options[i].split('~')[1];
+    }
+
+    inpCtrl.autocomplete({
+        source: availableTags,
+        select: function (event, ui) {
+
+            if (imeFunkcije != "")
+                imeFunkcije(ui, sOptions);
+        },
+        position: { my: "right top", at: "right bottom" }
+    });
+    inpCtrl.autocomplete("option", "minLength", brojSlovaZaAutocomplete);
+}
+
+
+
+function search_Array(ArrayObj, SearchFor) {
+    var Found = false;
+    for (var i = 0; i < ArrayObj.length; i++) {
+        if (ArrayObj[i].split('~')[1].toLowerCase() == SearchFor.toLowerCase()) {
+            return i;
+            var Found = true;
+            break;
+        }
+        else if ((i == (ArrayObj.length - 1)) && (!Found)) {
+            if (ArrayObj[i].split('~')[1].toLowerCase() != SearchFor.toLowerCase()) {
+                return -1;
+            }
+        }
+    }
+}
+
+function search_ArrayByKey(ArrayObj, SearchFor) {
+    var Found = false;
+    for (var i = 0; i < ArrayObj.length; i++) {
+        if (ArrayObj[i].split('~')[0] == SearchFor) {
+            return i;
+            var Found = true;
+            break;
+        }
+        else if ((i == (ArrayObj.length - 1)) && (!Found)) {
+            if (ArrayObj[i].split('~')[0] != SearchFor) {
+                return -1;
+            }
+        }
+    }
+}
+
+
+
+function decimalForDB(value) {
+    var res;
+    res = value.replace(',', '.');
+    return res;
+}
+
+
+function dateForDB(value) {
+    if (value == "")
+        return value;
+
+    return value.split('.')[1] + '/' + value.split('.')[0] + '/' + value.split('.')[2];
+}
+
+
+function getValueSifarnikForDB(el) {
+    var res = el.val();
+    if (el.length > 0) {
+        if (el.attr('vrsta') == 'DAT') {
+            res = dateForDB(el.val());
+        }
+        if (el.attr('vrsta') == 'DEC2') {
+            res = decimalForDB(el.val());
+        }
+        if (el.attr('vrsta') == 'DEC3') {
+            res = decimalForDB(el.val());
+        }
+        if (res != null)
+            res = res.toString().replace("'", "");
+    }
+    return res;
+}
+
+function proveriSifarnikEntiteti(txtBox, sifarnik, tip_autofil) {
+    //txtBox - kontrola koja se ispituje; sifarnik - niz koji se pretrazuje; tip_autofil - 0:samo iz sifarnika, 1 - moze i otvoreno polje za unos... 
+    //tip_autofil podrazumeva ako je  1 da je txtbox sa id koji se zavrsava sa _desc, pa on upisuje u id koji je bez _desc, 
+    // ako je 0 onda podrazumeva da se zavrsava sa _broj pa on smanjuje za 1 (uvedeno zbog sifarnika...)
+
+    var id = search_Array(sifarnik.split('|'), txtBox.value);
+
+    if (id == -1) {
+        if (tip_autofil != 0) {            
+            var broj = parseInt(txtBox.id.split('Kol')[1]);
+            $('#Kol' + (broj - 1)).val("0");
+        }
+        else {
+            alert('Morate odabrati jedno od ponuđenih opcija!');
+            $('#' + txtBox.id).val("");
+            $('#' + txtBox.id.substring(0, txtBox.length - 4)).val("0");
+        }
+    }
+    else {
+        
+        if (tip_autofil != 0) {
+            var broj = parseInt(txtBox.id.split('Kol')[1]) ;
+            $('#Kol' + (broj-1)).val(sifarnik.split('|')[id].split('~')[0]);
+        }
+        else {
+            $('#' + txtBox.id.substring(0, txtBox.id.length - 5)).val(sifarnik.split('|')[id].split('~')[0]);
+        }
+        
+    }
+}
+
+function proveriSifarnik(txtBox, sifarnik) {
+    var id = search_Array(sifarnik.split('|'), txtBox.value);
+    if (id == -1) {
+        alert('Morate odabrati jedno od ponuđenih opcija!');
+        $('#' + txtBox.id).val("");
+        $('#' + txtBox.id + '_id').val("0");
+    }
+    else {
+        $('#' + txtBox.id + '_id').val(sifarnik.split('|')[id].split('~')[0]);
+    }
+}
+
+function proveriObavezne(el) {
+    var res = true;
+    $(el).contents().find("input[obavezan],select[obavezan],textarea[obavezan]").each(function () {
+        if ($(this).is(":visible")) {
+            if ($(this).is("select") && $(this).find('option[value="' + $(this).val() + '"]').text() == "--------") {
+                $(this).parent().addClass('danger');
+                res = false;
+            }
+            if ($(this).val() == "") {
+                $(this).parent().attr('class', 'field danger');
+                res = false;
+            }
+        }
+        else {
+            if($(this).attr("multiple")!=null)
+                if ($(this).val() ==null) {
+                    $(this).parent().addClass('field danger');
+                    res = false;
+                }
+        }
+    });
+    return res;
+}
+
+function removeDanger(el) {
+    $(el).parent().attr('class', $(el).parent().attr('class').replace("danger", "")); //ukoliko je upisan danger izbacuje ga...
+    if ($(el).parent().find('span[class=adjoined]').length > 0)
+    { $(el).parent().find('span[class=adjoined]').hide(); }
+}
+
+function validateRegEx(el) {
+    var reg = $(el).attr('reg');
+
+    if (reg.toString().slice(0, 1) == '^' && reg.toString().slice(-1) == '$') {
+        var r = new RegExp(reg);
+
+        el.value = el.value.replace(/^\s+|\s+$/g, "");
+        el.value = el.value.replaceAll("|", "");
+
+        if (!el.value.match(r)) {
+            el.value = "";
+            $(el).parent().addClass('danger');
+            if ($(el).parent().find('span[class=adjoined]').length > 0)
+            { $(el).parent().find('span[class=adjoined]').show(); }
+        }
+    }
+}
+
+String.prototype.replaceAll = function (str1, str2, ignore) {
+    return this.replace(new RegExp(str1.replace(/([\/\,\!\\\^\$\{\}\[\]\(\)\.\*\+\?\|\<\>\-\&])/g, "\\$&"), (ignore ? "gi" : "g")), (typeof (str2) == "string") ? str2.replace(/\$/g, "$$$$") : str2);
+} 
+
+function getDocumentHeight() {
+
+    var body = document.body,
+            html = document.documentElement;
+
+    var height = Math.max(body.scrollHeight, body.offsetHeight,
+                       html.clientHeight, html.scrollHeight, html.offsetHeight);
+
+    return height;
+}
+
+function getDocumentWidth() {
+
+    var body = document.body,
+            html = document.documentElement;
+
+    var width = Math.max(body.scrollWidth, body.offsetWidth,
+                       html.clientWidth, html.scrollWidth, html.offsetWidth);
+
+    return width;
+}
+
+
+
+function studentDetalji(idDosije) {
+    top.showIzbor("student_prikaz.aspx?id=" + idDosije, "500", "200", this);
+}
+
+
+function validateJMBG(jmbg) {
+    if (jmbg == "") return true;
+
+    if (jmbg.length != 13) {
+        return false;
+    }
+    var p = new Array();
+    var p13 = 0;
+
+    p[0] = (parseInt(jmbg.substr(0, 1))) * 7;
+    p[1] = (parseInt(jmbg.substr(1, 1))) * 6;
+    p[2] = (parseInt(jmbg.substr(2, 1))) * 5;
+    p[3] = (parseInt(jmbg.substr(3, 1))) * 4;
+    p[4] = (parseInt(jmbg.substr(4, 1))) * 3;
+    p[5] = (parseInt(jmbg.substr(5, 1))) * 2;
+    p[6] = (parseInt(jmbg.substr(6, 1))) * 7;
+    p[7] = (parseInt(jmbg.substr(7, 1))) * 6;
+    p[8] = (parseInt(jmbg.substr(8, 1))) * 5;
+    p[9] = (parseInt(jmbg.substr(9, 1))) * 4;
+    p[10] = (parseInt(jmbg.substr(10, 1))) * 3;
+    p[11] = (parseInt(jmbg.substr(11, 1))) * 2;
+
+    for (var i = 0; i < 12; i++) {
+        p13 = p13 + p[i];
+
+    }
+
+    p13 = p13 % 11;
+    p13 = 11 - p13;
+
+    if (p13 == 11) {
+        p13 = 0;
+
+    }
+    if ((p13 == 10) || (p13 != parseInt(jmbg.substr(12, 1)))) {
+        return false;
+    }
+    else {
+        return true;
+    }
+}
+
+function proveraDatuma(dan, mesec, god) {
+    if (dan > 31 || mesec > 12)
+        return false;
+
+    if (dan == "31" &&
+          (mesec == "11" || mesec == "4" || mesec == "6" ||
+                  mesec == "9")) {
+        return false; // samo 1,3,5,7,8,10,12 ima 31 dan
+    }
+    else
+        if (mesec == "2") {
+            //prestupna godina
+            if (god % 4 == 0)
+                if (dan == "30" || dan == "31")
+                    return false;
+                else
+                    return true;
+            else
+                if (dan == "29" || dan == "30" || dan == "31")
+                    return false;
+                else
+
+                    if (mesec > 12)
+                        return false;
+                    else
+                        return true;
+        }
+        else
+            return true;
+    }
+
+    function showLoading(tekst) {
+
+        $("#modal1").show();
+        $("#show_modal").click();
+
+        $("#cont_modal1").height('auto');
+        $("#cont_modal1").width(100);
+        $("#loading").show();
+        $("#close_button").hide();
+        //$("#cont_modal1").css("background", "none");
+
+        if (tekst === undefined || tekst == "") {
+            $("#cont_modal1").css("background", "none");
+            $("#cont_modal1").css("border", "none");
+        }
+        else {
+            $("#cont_modal1").css("background", "white");
+            $("#text").html(tekst);
+            $("#text").show();
+        }
+
+    }
+    function hideLoading() {
+
+        $("#modal1").hide();
+
+        $("#modal_iframe").hide();
+        $("#modal_div").hide();
+        $("#modal_div").html("");
+        $("#cont_modal1").css("background", "white");
+        $("#loading").hide();
+        $("#text").html("");
+
+        parent.modalIzlaz();
+    }

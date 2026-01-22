@@ -1,0 +1,7 @@
+venv/
+.venv/
+models/*.pth
+models/*.zip
+logs/*.log
+__pycache__/
+.dataspell/

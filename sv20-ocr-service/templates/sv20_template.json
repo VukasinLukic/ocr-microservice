@@ -1,0 +1,688 @@
+{
+  "document": {
+    "name": "SV-20 Obrazac",
+    "full_name": "Statisticki izvstaj o upisu studenata",
+    "version": "2024/2025",
+    "pages": 2,
+    "expected_dpi": 300,
+    "anchor_elements": {
+      "logo": {
+        "text": "РЗС",
+        "approximate_position": {"x": 50, "y": 30}
+      },
+      "title": {
+        "text": "Образац ШВ-20",
+        "approximate_position": {"x": 650, "y": 30}
+      }
+    }
+  },
+  "fields": [
+    {
+      "id": 1,
+      "name": "ime_prezime_studenta",
+      "label": "ИМЕ И ПРЕЗИМЕ СТУДЕНТА",
+      "type": "TEXT",
+      "page": 1,
+      "coordinates": {
+        "x": 80,
+        "y": 180,
+        "width": 350,
+        "height": 50
+      },
+      "required": true,
+      "preprocessing": ["denoise", "deskew", "remove_lines"],
+      "postprocessing": ["capitalize_first"]
+    },
+    {
+      "id": 2,
+      "name": "jmbg",
+      "label": "ЈМБГ",
+      "type": "NUMERIC",
+      "page": 1,
+      "coordinates": {
+        "x": 450,
+        "y": 180,
+        "width": 340,
+        "height": 50
+      },
+      "required": true,
+      "preprocessing": ["remove_comb_boxes", "denoise"],
+      "validation": {
+        "length": 13,
+        "pattern": "^[0-9]{13}$"
+      },
+      "comb_box": {
+        "enabled": true,
+        "cell_count": 13,
+        "cell_width": 26
+      }
+    },
+    {
+      "id": 3,
+      "name": "broj_indeksa",
+      "label": "Број индекса",
+      "type": "ALPHANUMERIC",
+      "page": 1,
+      "coordinates": {
+        "x": 80,
+        "y": 230,
+        "width": 300,
+        "height": 45
+      },
+      "required": true,
+      "preprocessing": ["denoise", "remove_lines"],
+      "validation": {
+        "pattern": "^\\d{4}/\\d{4}$"
+      }
+    },
+    {
+      "id": 4,
+      "name": "univerzitet",
+      "label": "Универзитет",
+      "type": "TEXT",
+      "page": 1,
+      "coordinates": {
+        "x": 150,
+        "y": 320,
+        "width": 300,
+        "height": 40
+      },
+      "required": true,
+      "preprocessing": ["denoise", "remove_lines"]
+    },
+    {
+      "id": 5,
+      "name": "fakultet",
+      "label": "Факултет/академија/висока школа",
+      "type": "TEXT",
+      "page": 1,
+      "coordinates": {
+        "x": 80,
+        "y": 360,
+        "width": 450,
+        "height": 45
+      },
+      "required": true,
+      "preprocessing": ["denoise", "remove_lines"]
+    },
+    {
+      "id": 6,
+      "name": "studijski_program",
+      "label": "Студијски програм",
+      "type": "TEXT",
+      "page": 1,
+      "coordinates": {
+        "x": 180,
+        "y": 400,
+        "width": 350,
+        "height": 45
+      },
+      "required": true,
+      "preprocessing": ["denoise", "remove_lines"]
+    },
+    {
+      "id": 7,
+      "name": "vrsta_studija",
+      "label": "ВРСТА И СТЕПЕН СТУДИЈА",
+      "type": "OMR_SINGLE",
+      "page": 1,
+      "coordinates": {
+        "x": 30,
+        "y": 440,
+        "width": 380,
+        "height": 200
+      },
+      "required": true,
+      "omr_options": [
+        {"label": "1", "value": "Osnovne akademske studije", "relative_y": 20},
+        {"label": "2", "value": "Osnovne strukovne studije", "relative_y": 35},
+        {"label": "3", "value": "Specijalisticke strukovne studije", "relative_y": 50},
+        {"label": "4", "value": "Master akademske studije", "relative_y": 70},
+        {"label": "5", "value": "Master strukovne studije", "relative_y": 85},
+        {"label": "6", "value": "Specijalisticke akademske studije", "relative_y": 100},
+        {"label": "7", "value": "Integrisane akademske studije", "relative_y": 115},
+        {"label": "8", "value": "Doktorske akademske studije", "relative_y": 135},
+        {"label": "9", "value": "Stari programi", "relative_y": 150}
+      ]
+    },
+    {
+      "id": 8,
+      "name": "opstina_ustanove",
+      "label": "ОПШТИНА НА КОЈОЈ СЕ НАЛАЗИ ВИСОКОШКОЛСКА УСТАНОВА",
+      "type": "TEXT",
+      "page": 1,
+      "coordinates": {
+        "x": 80,
+        "y": 660,
+        "width": 350,
+        "height": 45
+      },
+      "required": true,
+      "preprocessing": ["denoise", "remove_lines"]
+    },
+    {
+      "id": 9,
+      "name": "godina_prvog_upisa",
+      "label": "КАЛЕНДАРСКА ГОДИНА ПРВОГ УПИСА НА НАВЕДЕНИ СТУДИЈСКИ ПРОГРАМ",
+      "type": "NUMERIC",
+      "page": 1,
+      "coordinates": {
+        "x": 80,
+        "y": 720,
+        "width": 120,
+        "height": 50
+      },
+      "required": true,
+      "preprocessing": ["denoise", "remove_comb_boxes"],
+      "validation": {
+        "min": 1990,
+        "max": 2030
+      }
+    },
+    {
+      "id": 10,
+      "name": "espb_bodovi",
+      "label": "УКУПНО СТЕЧЕНИ ЕСПБ БОДОВИ",
+      "type": "NUMERIC",
+      "page": 1,
+      "coordinates": {
+        "x": 130,
+        "y": 790,
+        "width": 100,
+        "height": 45
+      },
+      "required": false,
+      "preprocessing": ["denoise", "remove_comb_boxes"],
+      "validation": {
+        "min": 0,
+        "max": 400
+      }
+    },
+    {
+      "id": 11,
+      "name": "nacin_finansiranja",
+      "label": "НАЧИН ФИНАНСИРАЊА СТУДИЈА",
+      "type": "OMR_SINGLE",
+      "page": 1,
+      "coordinates": {
+        "x": 80,
+        "y": 830,
+        "width": 350,
+        "height": 50
+      },
+      "required": true,
+      "omr_options": [
+        {"label": "1", "value": "Budzet"},
+        {"label": "2", "value": "Samofinansiranje"}
+      ]
+    },
+    {
+      "id": 12,
+      "name": "srednja_skola_naziv",
+      "label": "Тачан назив средње школе",
+      "type": "TEXT",
+      "page": 1,
+      "coordinates": {
+        "x": 500,
+        "y": 310,
+        "width": 300,
+        "height": 40
+      },
+      "required": true,
+      "preprocessing": ["denoise", "remove_lines"]
+    },
+    {
+      "id": 13,
+      "name": "srednja_skola_vrsta",
+      "label": "Врста школе",
+      "type": "OMR_SINGLE",
+      "page": 1,
+      "coordinates": {
+        "x": 500,
+        "y": 350,
+        "width": 300,
+        "height": 45
+      },
+      "required": true,
+      "omr_options": [
+        {"label": "1", "value": "Gimnazija"},
+        {"label": "2", "value": "Ekonomska"},
+        {"label": "3", "value": "Saobracajna"},
+        {"label": "4", "value": "Druga"}
+      ]
+    },
+    {
+      "id": 14,
+      "name": "srednja_skola_opstina",
+      "label": "Општина/град или страна држава средње школе",
+      "type": "TEXT",
+      "page": 1,
+      "coordinates": {
+        "x": 500,
+        "y": 400,
+        "width": 300,
+        "height": 40
+      },
+      "required": true,
+      "preprocessing": ["denoise", "remove_lines"]
+    },
+    {
+      "id": 15,
+      "name": "srednja_skola_godina",
+      "label": "Година завршетка средње школе",
+      "type": "NUMERIC",
+      "page": 1,
+      "coordinates": {
+        "x": 500,
+        "y": 445,
+        "width": 100,
+        "height": 40
+      },
+      "required": true,
+      "preprocessing": ["denoise"],
+      "validation": {
+        "min": 1950,
+        "max": 2030
+      }
+    },
+    {
+      "id": 16,
+      "name": "pol",
+      "label": "ПОЛ",
+      "type": "OMR_SINGLE",
+      "page": 1,
+      "coordinates": {
+        "x": 500,
+        "y": 485,
+        "width": 280,
+        "height": 50
+      },
+      "required": true,
+      "omr_options": [
+        {"label": "1", "value": "M", "text": "Мушки"},
+        {"label": "2", "value": "Z", "text": "Женски"}
+      ]
+    },
+    {
+      "id": 17,
+      "name": "godina_rodjenja",
+      "label": "ГОДИНА РОЂЕЊА",
+      "type": "NUMERIC",
+      "page": 1,
+      "coordinates": {
+        "x": 620,
+        "y": 540,
+        "width": 150,
+        "height": 40
+      },
+      "required": true,
+      "preprocessing": ["denoise"],
+      "validation": {
+        "min": 1940,
+        "max": 2010
+      }
+    },
+    {
+      "id": 18,
+      "name": "mesto_rodjenja",
+      "label": "МЕСТО РОЂЕЊА",
+      "type": "TEXT",
+      "page": 1,
+      "coordinates": {
+        "x": 500,
+        "y": 590,
+        "width": 300,
+        "height": 40
+      },
+      "required": true,
+      "preprocessing": ["denoise", "remove_lines"]
+    },
+    {
+      "id": 19,
+      "name": "prebivaliste_opstina",
+      "label": "ПРЕБИВАЛИШТЕ - општина/град",
+      "type": "TEXT",
+      "page": 1,
+      "coordinates": {
+        "x": 500,
+        "y": 640,
+        "width": 300,
+        "height": 35
+      },
+      "required": true,
+      "preprocessing": ["denoise", "remove_lines"]
+    },
+    {
+      "id": 20,
+      "name": "prebivaliste_naselje",
+      "label": "ПРЕБИВАЛИШТЕ - насеље",
+      "type": "TEXT",
+      "page": 1,
+      "coordinates": {
+        "x": 500,
+        "y": 680,
+        "width": 300,
+        "height": 35
+      },
+      "required": false,
+      "preprocessing": ["denoise", "remove_lines"]
+    },
+    {
+      "id": 21,
+      "name": "prebivaliste_ulica",
+      "label": "ПРЕБИВАЛИШТЕ - улица и кућни број",
+      "type": "TEXT",
+      "page": 1,
+      "coordinates": {
+        "x": 500,
+        "y": 720,
+        "width": 300,
+        "height": 35
+      },
+      "required": true,
+      "preprocessing": ["denoise", "remove_lines"]
+    },
+    {
+      "id": 22,
+      "name": "drzavljanstvo",
+      "label": "ДРЖАВЉАНСТВО",
+      "type": "TEXT",
+      "page": 1,
+      "coordinates": {
+        "x": 500,
+        "y": 770,
+        "width": 300,
+        "height": 40
+      },
+      "required": true,
+      "preprocessing": ["denoise", "remove_lines"]
+    },
+    {
+      "id": 23,
+      "name": "nacionalna_pripadnost",
+      "label": "НАЦИОНАЛНА ПРИПАДНОСТ",
+      "type": "TEXT",
+      "page": 1,
+      "coordinates": {
+        "x": 500,
+        "y": 820,
+        "width": 300,
+        "height": 45
+      },
+      "required": false,
+      "preprocessing": ["denoise", "remove_lines"]
+    },
+    {
+      "id": 24,
+      "name": "bracni_status",
+      "label": "БРАЧНИ СТАТУС",
+      "type": "OMR_SINGLE",
+      "page": 1,
+      "coordinates": {
+        "x": 500,
+        "y": 870,
+        "width": 300,
+        "height": 60
+      },
+      "required": true,
+      "omr_options": [
+        {"label": "1", "value": "Neozenjen/Neudata"},
+        {"label": "2", "value": "Ozenjen/Udata"},
+        {"label": "3", "value": "Razveden/Razvedena"}
+      ]
+    },
+    {
+      "id": 25,
+      "name": "mesto_stanovanja_studiranje",
+      "label": "МЕСТО СТАНОВАЊА ЗА ВРЕМЕ СТУДИРАЊА",
+      "type": "TEXT",
+      "page": 2,
+      "coordinates": {
+        "x": 80,
+        "y": 60,
+        "width": 350,
+        "height": 70
+      },
+      "required": true,
+      "preprocessing": ["denoise", "remove_lines"]
+    },
+    {
+      "id": 26,
+      "name": "tip_smestaja",
+      "label": "ТИП СМЕШТАЈА ЗА ВРЕМЕ СТУДИРАЊА",
+      "type": "OMR_SINGLE",
+      "page": 2,
+      "coordinates": {
+        "x": 80,
+        "y": 140,
+        "width": 350,
+        "height": 120
+      },
+      "required": true,
+      "omr_options": [
+        {"label": "1", "value": "Kod roditelja"},
+        {"label": "2", "value": "Iznajmljen stan"},
+        {"label": "3", "value": "Studentski dom"},
+        {"label": "4", "value": "Sopstveni stan"},
+        {"label": "5", "value": "Kod rodjaka"},
+        {"label": "6", "value": "Drugo"}
+      ]
+    },
+    {
+      "id": 27,
+      "name": "izvor_sredstava",
+      "label": "ИЗВОР СРЕДСТАВА ЗА ЖИВОТ ТОКОМ СТУДИЈА",
+      "type": "OMR_MULTI",
+      "page": 2,
+      "coordinates": {
+        "x": 80,
+        "y": 270,
+        "width": 350,
+        "height": 150
+      },
+      "required": true,
+      "omr_options": [
+        {"label": "1", "value": "Izdrzavanje od roditelja"},
+        {"label": "2", "value": "Licni prihodi"},
+        {"label": "3", "value": "Stipendija javne uprave"},
+        {"label": "4", "value": "Kredit javne uprave"},
+        {"label": "5", "value": "Stipendije firmi i kompanija"},
+        {"label": "6", "value": "Komercijalni kredit"},
+        {"label": "7", "value": "Drugi izvori finansiranja"}
+      ]
+    },
+    {
+      "id": 28,
+      "name": "broj_glasackog_lista",
+      "label": "УПИСАНИ БРОЈ НА ШИФРУ ГЛАВНОГ ИЗБОРА",
+      "type": "TEXT",
+      "page": 2,
+      "coordinates": {
+        "x": 80,
+        "y": 440,
+        "width": 200,
+        "height": 40
+      },
+      "required": false,
+      "preprocessing": ["denoise"]
+    },
+    {
+      "id": 29,
+      "name": "da_li_ste_zaposleni",
+      "label": "ДА ЛИ СТЕ ЗАПОСЛЕНИ",
+      "type": "OMR_SINGLE",
+      "page": 2,
+      "coordinates": {
+        "x": 80,
+        "y": 490,
+        "width": 300,
+        "height": 45
+      },
+      "required": true,
+      "omr_options": [
+        {"label": "1", "value": "Da"},
+        {"label": "2", "value": "Ne"}
+      ]
+    },
+    {
+      "id": 30,
+      "name": "izdrzavanje_drugih",
+      "label": "ДА ЛИ ИЗДРЖАВАТЕ ДРУГА ЛИЦА",
+      "type": "OMR_SINGLE",
+      "page": 2,
+      "coordinates": {
+        "x": 80,
+        "y": 550,
+        "width": 350,
+        "height": 100
+      },
+      "required": true,
+      "omr_options": [
+        {"label": "1", "value": "Ne"},
+        {"label": "2", "value": "Da, dete/decu"},
+        {"label": "3", "value": "Da, suprug/supruga"},
+        {"label": "4", "value": "Da, roditelje"},
+        {"label": "5", "value": "Da, druga lica"}
+      ]
+    },
+    {
+      "id": 31,
+      "name": "roditelj_zaposlen",
+      "label": "ДА ЛИ ЈЕ ВАШ РОДИТЕЉ/ИЗДРЖАВАЛАЦ ЗАПОСЛЕН",
+      "type": "OMR_SINGLE",
+      "page": 2,
+      "coordinates": {
+        "x": 80,
+        "y": 660,
+        "width": 300,
+        "height": 45
+      },
+      "required": true,
+      "omr_options": [
+        {"label": "1", "value": "Da"},
+        {"label": "2", "value": "Ne"}
+      ]
+    },
+    {
+      "id": 32,
+      "name": "zanimanje_roditelja",
+      "label": "ЗАНИМАЊЕ РОДИТЕЉА/ИЗДРЖАВАОЦА",
+      "type": "TEXT",
+      "page": 2,
+      "coordinates": {
+        "x": 500,
+        "y": 60,
+        "width": 300,
+        "height": 40
+      },
+      "required": false,
+      "preprocessing": ["denoise", "remove_lines"]
+    },
+    {
+      "id": 33,
+      "name": "skolska_sprema_oca",
+      "label": "ШКОЛСКА СПРЕМА РОДИТЕЉА - Оца",
+      "type": "OMR_SINGLE",
+      "page": 2,
+      "coordinates": {
+        "x": 500,
+        "y": 110,
+        "width": 300,
+        "height": 150
+      },
+      "required": true,
+      "omr_options": [
+        {"label": "1", "value": "Osnovna skola ili manje"},
+        {"label": "2", "value": "Srednja skola"},
+        {"label": "3", "value": "Visa ili visoka skola"},
+        {"label": "4", "value": "Magisterijum/Master"},
+        {"label": "5", "value": "Doktorat"},
+        {"label": "9", "value": "Nepoznato"}
+      ]
+    },
+    {
+      "id": 34,
+      "name": "skolska_sprema_majke",
+      "label": "ШКОЛСКА СПРЕМА РОДИТЕЉА - Мајке",
+      "type": "OMR_SINGLE",
+      "page": 2,
+      "coordinates": {
+        "x": 500,
+        "y": 270,
+        "width": 300,
+        "height": 150
+      },
+      "required": true,
+      "omr_options": [
+        {"label": "1", "value": "Osnovna skola ili manje"},
+        {"label": "2", "value": "Srednja skola"},
+        {"label": "3", "value": "Visa ili visoka skola"},
+        {"label": "4", "value": "Magisterijum/Master"},
+        {"label": "5", "value": "Doktorat"},
+        {"label": "9", "value": "Nepoznato"}
+      ]
+    },
+    {
+      "id": 35,
+      "name": "potrebna_podrska",
+      "label": "ДА ЛИ ВАМ ЈЕ ПОТРЕБАН НЕКИ ОД НАВЕДЕНИХ ВИДОВА ПОДРШКЕ",
+      "type": "OMR_MULTI",
+      "page": 2,
+      "coordinates": {
+        "x": 500,
+        "y": 430,
+        "width": 300,
+        "height": 280
+      },
+      "required": false,
+      "omr_options": [
+        {"label": "1", "value": "Pomoc u obavljanju osnovnih radnji"},
+        {"label": "2", "value": "Arhitektonska dostupnost - prilaz"},
+        {"label": "3", "value": "Arhitektonska dostupnost - slepima"},
+        {"label": "4", "value": "Skeniranje materijala u formatu"},
+        {"label": "5", "value": "Upotreba asistivnih tehnologija"},
+        {"label": "6", "value": "Angažovanje tumaca za znakovni jezik"},
+        {"label": "7", "value": "Prevoz do visokoskolske ustanove"},
+        {"label": "8", "value": "Postajanje induktivnih petlji"},
+        {"label": "9", "value": "Pomoc u verbalnom obrazanju"},
+        {"label": "10", "value": "Pomoc u prepoznavanju funkcija ustanove"},
+        {"label": "11", "value": "Prilagodjavanje vremena trajanja"},
+        {"label": "12", "value": "Pomoc u savladavanju akademskih obaveza"},
+        {"label": "13", "value": "Nista od navedenog"}
+      ]
+    },
+    {
+      "id": 36,
+      "name": "datum_popunjavanja",
+      "label": "Datum popunjavanja",
+      "type": "DATE",
+      "page": 2,
+      "coordinates": {
+        "x": 80,
+        "y": 750,
+        "width": 250,
+        "height": 45
+      },
+      "required": true,
+      "preprocessing": ["denoise", "remove_lines"],
+      "validation": {
+        "format": "DD.MM.YYYY"
+      }
+    },
+    {
+      "id": 37,
+      "name": "potpis_studenta",
+      "label": "Потпис студента",
+      "type": "SIGNATURE",
+      "page": 2,
+      "coordinates": {
+        "x": 80,
+        "y": 800,
+        "width": 300,
+        "height": 60
+      },
+      "required": false,
+      "ocr_enabled": false
+    }
+  ]
+}
