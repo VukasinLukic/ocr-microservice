@@ -27,7 +27,7 @@ class Config:
     # Latin script (includes Serbian Latin)
     OCR_LANGUAGES_LATIN = ['rs_latin', 'en']
     # Default to Latin for most forms
-    OCR_LANGUAGES = ['rs_latin', 'en']
+    OCR_LANGUAGES = ['rs_cyrillic', 'rs_latin', 'en']
     CONFIDENCE_THRESHOLD = 0.5
 
     # Hardware Detection

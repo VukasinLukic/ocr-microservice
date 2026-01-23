@@ -237,35 +237,45 @@ class ImageProcessor:
                                        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
                                        cv2.THRESH_BINARY_INV, 11, 2)
 
-        # Detektuj vertikalne linije (visina = 1/3 slike)
+        # Detektuj vertikalne linije (visina = 1/5 slike - manje tolerantno)
+        # Smanjujemo visinu kernela da ne bi hvatali delove cifara (npr 1, 7)
         vertical_kernel = cv2.getStructuringElement(
-            cv2.MORPH_RECT, (1, h // 3)
+            cv2.MORPH_RECT, (1, h // 5)
         )
         vertical_lines = cv2.morphologyEx(binary, cv2.MORPH_OPEN,
                                           vertical_kernel, iterations=2)
 
-        # Detektuj horizontalne linije (gornja i donja ivica kucica)
+        # Detektuj horizontalne linije
         horizontal_kernel = cv2.getStructuringElement(
             cv2.MORPH_RECT, (w // 2, 1)
         )
         horizontal_lines = cv2.morphologyEx(binary, cv2.MORPH_OPEN,
                                             horizontal_kernel, iterations=2)
 
-        # Kombinuj sve linije
+        # Kombinuj linije
         all_lines = cv2.add(vertical_lines, horizontal_lines)
+        
+        # Smanjujemo dilation agression - koristimo krstasti kernel (cross) umesto punog pravougaonika
+        # Ovo bolje cuva uglove cifara
+        dilate_kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3))
+        all_lines = cv2.dilate(all_lines, dilate_kernel, iterations=1)
 
         # Ukloni linije iz binarizovane slike
         result = cv2.subtract(binary, all_lines)
 
-        # Cleanup - povezi slomljene karaktere
-        cleanup_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+        # Cleanup - povezi slomljene karaktere (horizontalno)
+        # Koristimo 3x1 kernel da povezemo prekinute cifre a da ne spojimo vertikalno
+        cleanup_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 1))
         result = cv2.morphologyEx(result, cv2.MORPH_CLOSE,
                                   cleanup_kernel, iterations=1)
-
+        
+        # Jos jedan pass ciscenja suma
+        result = cv2.fastNlMeansDenoising(result, None, 20, 7, 21)
+        
         # Vrati u normalan format
         result = cv2.bitwise_not(result)
 
-        logger.info(f"Uklonjene kucice ({cell_count} celija)")
+        logger.info(f"Uklonjene kucice ({cell_count} celija) - Aggressive mode")
         return result
 
     def enhance_contrast(self, img: np.ndarray,
@@ -305,7 +315,16 @@ class ImageProcessor:
                 break
 
         if document_contour is None:
-            logger.warning("Perspective transform: nije pronadjen dokument")
+            logger.warning("Perspective transform: nije pronadjen dokument cetvorougao")
+            return img
+
+        # Proveri velicinu konture u odnosu na sliku
+        img_area = img.shape[0] * img.shape[1]
+        contour_area = cv2.contourArea(document_contour)
+        min_area_ratio = 0.5  # Dokument mora zauzimati bar 50% slike
+
+        if contour_area < img_area * min_area_ratio:
+            logger.warning(f"Perspective transform: pronadjen dokument je premali ({contour_area/img_area:.2%}), preskacemo. Verovatno je detektovan samo deo obrasca.")
             return img
 
         # Sortiraj tacke: top-left, top-right, bottom-right, bottom-left
@@ -397,6 +416,21 @@ class ImageProcessor:
                             interpolation=cv2.INTER_CUBIC)
 
         logger.info(f"Slika skalirana sa {current_dpi} DPI na {self.target_dpi} DPI")
+        return resized
+
+    def resize_to_width(self, img: np.ndarray, target_width: int) -> np.ndarray:
+        """
+        Skalira sliku na zadatu sirinu uz ocuvanje aspect ratio-a.
+        """
+        h, w = img.shape[:2]
+        if w == target_width:
+            return img
+        
+        scale = target_width / w
+        new_height = int(h * scale)
+        
+        resized = cv2.resize(img, (target_width, new_height), interpolation=cv2.INTER_AREA if scale < 1 else cv2.INTER_CUBIC)
+        logger.info(f"Resize: {w}x{h} -> {target_width}x{new_height} (scale={scale:.2f})")
         return resized
 
     def sharpen(self, img: np.ndarray) -> np.ndarray:

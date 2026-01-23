@@ -4,6 +4,7 @@ REST API endpoints za OCR obradu SV-20 obrazaca.
 """
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -17,6 +18,9 @@ import time
 
 # Import procesora
 import sys
+import cv2
+import base64
+import numpy as np
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from processors.image_processor import ImageProcessor, PDFProcessor
@@ -46,6 +50,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount static files for Template Creator
+app.mount("/editor", StaticFiles(directory="static", html=True), name="static")
 
 
 # Pydantic modeli za response
@@ -198,6 +205,33 @@ async def get_template():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/template/save")
+async def save_template(template: Dict[str, Any]):
+    """
+    Cuva azurirani template na disk.
+    """
+    try:
+        template_path = Config.TEMPLATES_DIR / "sv20_template.json"
+        
+        # Validacija strukture (basic)
+        if "fields" not in template or "document" not in template:
+            raise HTTPException(status_code=400, detail="Invalid template structure")
+            
+        with open(template_path, 'w', encoding='utf-8') as f:
+            json.dump(template, f, indent=2, ensure_ascii=False)
+            
+        # Reload global template cache
+        global template_data
+        template_data = template
+        
+        logger.info("Template uspesno sacuvan i reloadovan.")
+        return {"success": True, "message": "Template saved successfully"}
+        
+    except Exception as e:
+        logger.error(f"Greska pri cuvanju template-a: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/fields")
 async def get_fields():
     """
@@ -220,18 +254,157 @@ async def get_fields():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def image_to_base64(img) -> str:
+    """Konvertuje OpenCV sliku u base64 string."""
+    import cv2
+    import base64
+    
+    success, buffer = cv2.imencode('.jpg', img)
+    if not success:
+        raise ValueError("Could not encode image")
+    
+    img_str = base64.b64encode(buffer).decode('utf-8')
+    return f"data:image/jpeg;base64,{img_str}"
+
+
+# Global state for the editor (single user)
+LAST_UPLOADED_PDF_PATH = None
+
+@app.post("/api/template/render-upload")
+async def render_upload_for_editor(file: UploadFile = File(...)):
+    """
+    Prihvata sliku ili PDF, renderuje prvu stranicu i vraca je kao base64 string
+    za prikaz u editoru.
+    """
+    global LAST_UPLOADED_PDF_PATH
+    
+    allowed_extensions = {'.jpg', '.jpeg', '.png', '.pdf', '.tif', '.tiff', '.bmp'}
+    file_ext = Path(file.filename).suffix.lower() if file.filename else ''
+    
+    if file_ext not in allowed_extensions:
+        raise HTTPException(400, f"Unsupported file type: {file_ext}")
+
+    tmp_path = None
+    try:
+        # Sacuvaj uploadovani fajl privremeno
+        content = await file.read()
+        # Cuvamo u persistent temp fajlu da bismo mogli kasnije da citamo druge strane
+        # Koristimo standardni temp dir ali ne brisemo odmah
+        with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
+        
+        LAST_UPLOADED_PDF_PATH = tmp_path
+
+        # Detect PDF vs Image
+        if file_ext == '.pdf':
+            # Koristi postojeci pdf_processor
+            if not pdf_processor:
+                 raise HTTPException(503, "PDF processor not initialized")
+            
+            # Uzmi PRVU stranu po defaultu
+            images = pdf_processor.pdf_to_images(tmp_path)
+            if not images:
+                raise HTTPException(400, "Empty PDF")
+            img = images[0]
+        else:
+            # Obicna slika
+            img = image_processor.load_image(tmp_path)
+            
+        # Resize to 1024px width (Editor standard)
+        img = image_processor.resize_to_width(img, 1024)
+        
+        # Convert to base64
+        _, buffer = cv2.imencode('.jpg', img)
+        img_str = base64.b64encode(buffer).decode('utf-8')
+        
+        return {
+            "image_data": f"data:image/jpeg;base64,{img_str}",
+            "is_pdf": file_ext == '.pdf',
+            "filename": file.filename
+        }
+
+    except Exception as e:
+        logger.error(f"Error rendering upload: {e}")
+        if tmp_path and os.path.exists(tmp_path) and LAST_UPLOADED_PDF_PATH != tmp_path:
+             os.unlink(tmp_path)
+        raise HTTPException(500, str(e))
+
+@app.get("/api/template/render-page")
+async def render_page_for_editor(page: int = 1):
+    """
+    Renderuje specificnu stranicu poslednjeg uploadovanog PDF-a.
+    """
+    global LAST_UPLOADED_PDF_PATH
+    
+    logger.info(f"Render Page Requested: {page}")
+    logger.info(f"Last PDF Path: {LAST_UPLOADED_PDF_PATH}")
+
+    if not LAST_UPLOADED_PDF_PATH or not os.path.exists(LAST_UPLOADED_PDF_PATH):
+        logger.error("No PDF uploaded or file missing")
+        raise HTTPException(404, "No PDF uploaded yet")
+        
+    try:
+        # Proveri ekstenziju
+        if not LAST_UPLOADED_PDF_PATH.lower().endswith('.pdf'):
+             raise HTTPException(400, "Last uploaded file is not a PDF")
+
+        if not pdf_processor:
+             logger.error("PDF processor not initialized")
+             raise HTTPException(503, "PDF processor not initialized")
+             
+        # Ucitaj slike
+        logger.info(f"Converting PDF to images: {LAST_UPLOADED_PDF_PATH}")
+        images = pdf_processor.pdf_to_images(LAST_UPLOADED_PDF_PATH)
+        
+        if not images:
+            logger.error("No images extracted from PDF")
+            raise HTTPException(500, "Failed to extract images from PDF")
+
+        logger.info(f"Extracted {len(images)} images")
+        
+        if page < 1 or page > len(images):
+            raise HTTPException(400, f"Page {page} out of range (1-{len(images)})")
+            
+        # Uzmi trazenu stranu (indeks je page-1)
+        img = images[page - 1]
+        
+        # Resize to 1024px width (Editor standard)
+        logger.info("Resizing image...")
+        img = image_processor.resize_to_width(img, 1024)
+        
+        # Convert to base64
+        logger.info("Encoding to base64...")
+        _, buffer = cv2.imencode('.jpg', img)
+        img_str = base64.b64encode(buffer).decode('utf-8')
+        
+        logger.info("Returning response")
+        return {
+            "image_data": f"data:image/jpeg;base64,{img_str}",
+            "page": page
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error rendering page {page}: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(500, f"Internal Server Error: {str(e)}")
+
+
 @app.post("/api/ocr/process", response_model=OCRResponse)
 async def process_image(
     file: UploadFile = File(...),
     obrazac_id: Optional[str] = Form(None),
-    page_number: Optional[int] = Form(1)
+    page_number: Optional[int] = Form(None)
 ):
     """
     Procesira sliku SV-20 obrasca i vraca ekstrahovane podatke.
 
     - **file**: Slika obrasca (JPG, PNG, PDF)
     - **obrazac_id**: Opcioni ID obrasca za pracenje
-    - **page_number**: Broj stranice za obradu (default: 1)
+    - **page_number**: Broj stranice za obradu (None = sve strane za PDF)
 
     Vraca JSON sa ekstrahovanim poljima, confidence skorovima i validacijom.
     """
@@ -258,22 +431,10 @@ async def process_image(
         # Ucitaj template
         template = load_template()
 
-        # Ucitaj sliku
-        if file_ext == '.pdf':
-            # PDF - konvertuj u slike
-            images = pdf_processor.pdf_to_images(tmp_path)
-            if page_number > len(images):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"PDF ima {len(images)} stranica, trazena je {page_number}"
-                )
-            img = images[page_number - 1]
-        else:
-            # Obicna slika
-            img = image_processor.load_image(tmp_path)
-
-        # Pripremi dokument
-        img = image_processor.preprocess_full_document(img)
+        # High-Res OCR Implementation
+        TARGET_WIDTH = 2048
+        TEMPLATE_WIDTH = 1024
+        scale_factor = TARGET_WIDTH / TEMPLATE_WIDTH
 
         # Dobavi OCR engine
         if not OCREngineFactory.is_initialized():
@@ -283,39 +444,130 @@ async def process_image(
             )
         ocr_engine = OCREngineFactory.get_instance()
 
-        # Procesiraj svako polje
         results = []
         successful = 0
         failed = 0
 
-        # Filtriraj polja za trenutnu stranicu
-        page_fields = [f for f in template['fields']
-                      if f.get('page', 1) == page_number]
+        if file_ext == '.pdf':
+            # PDF - konvertuj SVE strane u slike
+            all_images = pdf_processor.pdf_to_images(tmp_path)
+            total_pages = len(all_images)
+            logger.info(f"PDF ima {total_pages} stranica")
 
-        for field in page_fields:
-            try:
-                field_result = process_single_field(img, field, ocr_engine)
-                results.append(field_result)
+            # Odredite koje strane obraditi
+            if page_number is not None:
+                # Samo jedna specificna strana
+                if page_number > total_pages:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"PDF ima {total_pages} stranica, trazena je {page_number}"
+                    )
+                pages_to_process = [page_number]
+            else:
+                # Sve strane
+                pages_to_process = list(range(1, total_pages + 1))
 
-                if field_result.is_valid:
-                    successful += 1
-                else:
+            # Obradi svaku stranu
+            for current_page in pages_to_process:
+                logger.info(f"Obrada stranice {current_page}/{total_pages}")
+                img = all_images[current_page - 1]
+                img = image_processor.resize_to_width(img, TARGET_WIDTH)
+                img = image_processor.preprocess_full_document(img)
+
+                # Filtriraj polja za trenutnu stranicu
+                page_fields = [f for f in template['fields']
+                              if f.get('page', 1) == current_page]
+
+                for field in page_fields:
+                    try:
+                        # Scale coordinates for High-Res Image
+                        scaled_field = field.copy()
+                        if 'coordinates' in scaled_field:
+                            c = scaled_field['coordinates']
+                            scaled_field['coordinates'] = {
+                                'x': int(c['x'] * scale_factor),
+                                'y': int(c['y'] * scale_factor),
+                                'width': int(c['width'] * scale_factor),
+                                'height': int(c['height'] * scale_factor)
+                            }
+
+                        field_result = process_single_field(img, scaled_field, ocr_engine)
+
+                        # Restore original coordinates for the response
+                        if 'coordinates' in field:
+                            field_result.coordinates = FieldCoordinates(**field['coordinates'])
+
+                        results.append(field_result)
+
+                        if field_result.is_valid:
+                            successful += 1
+                        else:
+                            failed += 1
+
+                    except Exception as e:
+                        logger.error(f"Greska pri obradi polja {field['name']} (strana {current_page}): {e}")
+                        results.append(OCRFieldResult(
+                            field_id=field['id'],
+                            field_name=field['name'],
+                            field_type=field.get('type', 'TEXT'),
+                            ocr_value="",
+                            validated_value="",
+                            confidence=0.0,
+                            is_valid=False,
+                            validation_error=str(e),
+                            coordinates=FieldCoordinates(**field['coordinates']) if 'coordinates' in field else None
+                        ))
+                        failed += 1
+
+        else:
+            # Obicna slika - obradi kao jednu stranicu
+            img = image_processor.load_image(tmp_path)
+            img = image_processor.resize_to_width(img, TARGET_WIDTH)
+            img = image_processor.preprocess_full_document(img)
+
+            # Za slike, obradi samo polja sa page=1 (ili bez page atributa)
+            target_page = page_number if page_number else 1
+            page_fields = [f for f in template['fields']
+                          if f.get('page', 1) == target_page]
+
+            for field in page_fields:
+                try:
+                    scaled_field = field.copy()
+                    if 'coordinates' in scaled_field:
+                        c = scaled_field['coordinates']
+                        scaled_field['coordinates'] = {
+                            'x': int(c['x'] * scale_factor),
+                            'y': int(c['y'] * scale_factor),
+                            'width': int(c['width'] * scale_factor),
+                            'height': int(c['height'] * scale_factor)
+                        }
+
+                    field_result = process_single_field(img, scaled_field, ocr_engine)
+
+                    if 'coordinates' in field:
+                        field_result.coordinates = FieldCoordinates(**field['coordinates'])
+
+                    results.append(field_result)
+
+                    if field_result.is_valid:
+                        successful += 1
+                    else:
+                        failed += 1
+
+                except Exception as e:
+                    logger.error(f"Greska pri obradi polja {field['name']}: {e}")
+                    results.append(OCRFieldResult(
+                        field_id=field['id'],
+                        field_name=field['name'],
+                        field_type=field.get('type', 'TEXT'),
+                        ocr_value="",
+                        validated_value="",
+                        confidence=0.0,
+                        is_valid=False,
+                        validation_error=str(e),
+                        coordinates=FieldCoordinates(**field['coordinates']) if 'coordinates' in field else None
+                    ))
                     failed += 1
-
-            except Exception as e:
-                logger.error(f"Greska pri obradi polja {field['name']}: {e}")
-                results.append(OCRFieldResult(
-                    field_id=field['id'],
-                    field_name=field['name'],
-                    field_type=field.get('type', 'TEXT'),
-                    ocr_value="",
-                    validated_value="",
-                    confidence=0.0,
-                    is_valid=False,
-                    validation_error=str(e),
-                    coordinates=FieldCoordinates(**field['coordinates']) if 'coordinates' in field else None
-                ))
-                failed += 1
 
         processing_time = (time.time() - start_time) * 1000
 
@@ -326,7 +578,7 @@ async def process_image(
             success=True,
             message="Obrada zavrsena",
             obrazac_id=obrazac_id,
-            total_fields=len(page_fields),
+            total_fields=len(results),
             successful_fields=successful,
             failed_fields=failed,
             processing_time_ms=processing_time,
@@ -505,6 +757,10 @@ async def process_image_raw(
 
         # Ucitaj sliku
         img = image_processor.load_image_from_bytes(content)
+        
+        # Standardizuj velicinu (1024px)
+        img = image_processor.resize_to_width(img, 1024)
+        
         img = image_processor.preprocess_full_document(img)
 
         # OCR celog dokumenta

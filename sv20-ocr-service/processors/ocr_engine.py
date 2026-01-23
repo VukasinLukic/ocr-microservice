@@ -33,9 +33,15 @@ class OCREngine:
             gpu_backend: "directml" za AMD, "cuda" za NVIDIA
         """
         if languages is None:
-            languages = ['rs_cyrillic', 'rs_latin']
+            languages = ['rs_cyrillic', 'rs_latin', 'en']
 
-        self.languages = languages
+        # Fix for "Cyrillic is only compatible with English" error
+        # EasyOCR requires a specific set of languages when using Cyrillic models
+        # We must STRICTLY follow the compatible list and cannot add rs_latin
+        if 'rs_cyrillic' in languages:
+             self.languages = ["ru", "rs_cyrillic", "be", "bg", "uk", "mn", "en"]
+        else:
+            self.languages = languages
         self.model_dir = model_storage_directory
         self.use_gpu = use_gpu
         self.gpu_backend = gpu_backend
@@ -230,7 +236,8 @@ class OCREngine:
         Returns:
             (cifre, confidence)
         """
-        # Koristi allowlist za cifre
+        # Koristi strict allowlist za cifre
+        # Ovo sprecava da se '|', 'I', 'l' i slicno citaju kao cifre
         text, confidence = self.recognize_single_field(
             image,
             allowlist='0123456789'

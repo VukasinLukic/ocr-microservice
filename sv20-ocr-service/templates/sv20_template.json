@@ -8,11 +8,17 @@
     "anchor_elements": {
       "logo": {
         "text": "РЗС",
-        "approximate_position": {"x": 50, "y": 30}
+        "approximate_position": {
+          "x": 50,
+          "y": 30
+        }
       },
       "title": {
         "text": "Образац ШВ-20",
-        "approximate_position": {"x": 650, "y": 30}
+        "approximate_position": {
+          "x": 650,
+          "y": 30
+        }
       }
     }
   },
@@ -24,14 +30,20 @@
       "type": "TEXT",
       "page": 1,
       "coordinates": {
-        "x": 80,
-        "y": 180,
-        "width": 350,
-        "height": 50
+        "x": 98,
+        "y": 331,
+        "width": 258,
+        "height": 33
       },
       "required": true,
-      "preprocessing": ["denoise", "deskew", "remove_lines"],
-      "postprocessing": ["capitalize_first"]
+      "preprocessing": [
+        "denoise",
+        "deskew",
+        "remove_lines"
+      ],
+      "postprocessing": [
+        "capitalize_first"
+      ]
     },
     {
       "id": 2,
@@ -40,13 +52,16 @@
       "type": "NUMERIC",
       "page": 1,
       "coordinates": {
-        "x": 450,
-        "y": 180,
-        "width": 340,
-        "height": 50
+        "x": 368,
+        "y": 366,
+        "width": 366,
+        "height": 34
       },
       "required": true,
-      "preprocessing": ["remove_comb_boxes", "denoise"],
+      "preprocessing": [
+        "remove_comb_boxes",
+        "denoise"
+      ],
       "validation": {
         "length": 13,
         "pattern": "^[0-9]{13}$"
@@ -64,13 +79,16 @@
       "type": "ALPHANUMERIC",
       "page": 1,
       "coordinates": {
-        "x": 80,
-        "y": 230,
-        "width": 300,
-        "height": 45
+        "x": 84,
+        "y": 398,
+        "width": 282,
+        "height": 34
       },
       "required": true,
-      "preprocessing": ["denoise", "remove_lines"],
+      "preprocessing": [
+        "denoise",
+        "remove_lines"
+      ],
       "validation": {
         "pattern": "^\\d{4}/\\d{4}$"
       }
@@ -82,13 +100,16 @@
       "type": "TEXT",
       "page": 1,
       "coordinates": {
-        "x": 150,
-        "y": 320,
+        "x": 185,
+        "y": 529,
         "width": 300,
         "height": 40
       },
       "required": true,
-      "preprocessing": ["denoise", "remove_lines"]
+      "preprocessing": [
+        "denoise",
+        "remove_lines"
+      ]
     },
     {
       "id": 5,
@@ -97,13 +118,16 @@
       "type": "TEXT",
       "page": 1,
       "coordinates": {
-        "x": 80,
-        "y": 360,
-        "width": 450,
-        "height": 45
+        "x": 70,
+        "y": 583,
+        "width": 421,
+        "height": 77
       },
       "required": true,
-      "preprocessing": ["denoise", "remove_lines"]
+      "preprocessing": [
+        "denoise",
+        "remove_lines"
+      ]
     },
     {
       "id": 6,
@@ -112,13 +136,16 @@
       "type": "TEXT",
       "page": 1,
       "coordinates": {
-        "x": 180,
-        "y": 400,
-        "width": 350,
-        "height": 45
+        "x": 218,
+        "y": 659,
+        "width": 269,
+        "height": 48
       },
       "required": true,
-      "preprocessing": ["denoise", "remove_lines"]
+      "preprocessing": [
+        "denoise",
+        "remove_lines"
+      ]
     },
     {
       "id": 7,
@@ -127,22 +154,58 @@
       "type": "OMR_SINGLE",
       "page": 1,
       "coordinates": {
-        "x": 30,
-        "y": 440,
-        "width": 380,
-        "height": 200
+        "x": 92,
+        "y": 784,
+        "width": 411,
+        "height": 212
       },
       "required": true,
       "omr_options": [
-        {"label": "1", "value": "Osnovne akademske studije", "relative_y": 20},
-        {"label": "2", "value": "Osnovne strukovne studije", "relative_y": 35},
-        {"label": "3", "value": "Specijalisticke strukovne studije", "relative_y": 50},
-        {"label": "4", "value": "Master akademske studije", "relative_y": 70},
-        {"label": "5", "value": "Master strukovne studije", "relative_y": 85},
-        {"label": "6", "value": "Specijalisticke akademske studije", "relative_y": 100},
-        {"label": "7", "value": "Integrisane akademske studije", "relative_y": 115},
-        {"label": "8", "value": "Doktorske akademske studije", "relative_y": 135},
-        {"label": "9", "value": "Stari programi", "relative_y": 150}
+        {
+          "label": "1",
+          "value": "Osnovne akademske studije",
+          "relative_y": 20
+        },
+        {
+          "label": "2",
+          "value": "Osnovne strukovne studije",
+          "relative_y": 35
+        },
+        {
+          "label": "3",
+          "value": "Specijalisticke strukovne studije",
+          "relative_y": 50
+        },
+        {
+          "label": "4",
+          "value": "Master akademske studije",
+          "relative_y": 70
+        },
+        {
+          "label": "5",
+          "value": "Master strukovne studije",
+          "relative_y": 85
+        },
+        {
+          "label": "6",
+          "value": "Specijalisticke akademske studije",
+          "relative_y": 100
+        },
+        {
+          "label": "7",
+          "value": "Integrisane akademske studije",
+          "relative_y": 115
+        },
+        {
+          "label": "8",
+          "value": "Doktorske akademske studije",
+          "relative_y": 135
+        },
+        {
+          "label": "9",
+          "value": "Stari programi",
+          "relative_y": 150
+        }
       ]
     },
     {
@@ -152,13 +215,16 @@
       "type": "TEXT",
       "page": 1,
       "coordinates": {
-        "x": 80,
-        "y": 660,
+        "x": 120,
+        "y": 1039,
         "width": 350,
         "height": 45
       },
       "required": true,
-      "preprocessing": ["denoise", "remove_lines"]
+      "preprocessing": [
+        "denoise",
+        "remove_lines"
+      ]
     },
     {
       "id": 9,
@@ -167,13 +233,16 @@
       "type": "NUMERIC",
       "page": 1,
       "coordinates": {
-        "x": 80,
-        "y": 720,
+        "x": 381,
+        "y": 1144,
         "width": 120,
         "height": 50
       },
       "required": true,
-      "preprocessing": ["denoise", "remove_comb_boxes"],
+      "preprocessing": [
+        "denoise",
+        "remove_comb_boxes"
+      ],
       "validation": {
         "min": 1990,
         "max": 2030
@@ -186,13 +255,16 @@
       "type": "NUMERIC",
       "page": 1,
       "coordinates": {
-        "x": 130,
-        "y": 790,
+        "x": 402,
+        "y": 1250,
         "width": 100,
         "height": 45
       },
       "required": false,
-      "preprocessing": ["denoise", "remove_comb_boxes"],
+      "preprocessing": [
+        "denoise",
+        "remove_comb_boxes"
+      ],
       "validation": {
         "min": 0,
         "max": 400
@@ -205,15 +277,25 @@
       "type": "OMR_SINGLE",
       "page": 1,
       "coordinates": {
-        "x": 80,
-        "y": 830,
-        "width": 350,
-        "height": 50
+        "x": 79,
+        "y": 1333,
+        "width": 427,
+        "height": 68
       },
       "required": true,
       "omr_options": [
-        {"label": "1", "value": "Budzet"},
-        {"label": "2", "value": "Samofinansiranje"}
+        {
+          "label": "1",
+          "value": "Budzet",
+          "relative_y": 0,
+          "height": 73
+        },
+        {
+          "label": "2",
+          "value": "Samofinansiranje",
+          "relative_y": 73,
+          "height": 73
+        }
       ]
     },
     {
@@ -223,13 +305,16 @@
       "type": "TEXT",
       "page": 1,
       "coordinates": {
-        "x": 500,
-        "y": 310,
-        "width": 300,
-        "height": 40
+        "x": 551,
+        "y": 496,
+        "width": 400,
+        "height": 34
       },
       "required": true,
-      "preprocessing": ["denoise", "remove_lines"]
+      "preprocessing": [
+        "denoise",
+        "remove_lines"
+      ]
     },
     {
       "id": 13,
@@ -238,17 +323,37 @@
       "type": "OMR_SINGLE",
       "page": 1,
       "coordinates": {
-        "x": 500,
-        "y": 350,
-        "width": 300,
-        "height": 45
+        "x": 547,
+        "y": 543,
+        "width": 425,
+        "height": 32
       },
       "required": true,
       "omr_options": [
-        {"label": "1", "value": "Gimnazija"},
-        {"label": "2", "value": "Ekonomska"},
-        {"label": "3", "value": "Saobracajna"},
-        {"label": "4", "value": "Druga"}
+        {
+          "label": "1",
+          "value": "Gimnazija",
+          "relative_y": 0,
+          "height": 25
+        },
+        {
+          "label": "2",
+          "value": "Ekonomska",
+          "relative_y": 25,
+          "height": 25
+        },
+        {
+          "label": "3",
+          "value": "Saobracajna",
+          "relative_y": 50,
+          "height": 25
+        },
+        {
+          "label": "4",
+          "value": "Druga",
+          "relative_y": 75,
+          "height": 25
+        }
       ]
     },
     {
@@ -258,13 +363,16 @@
       "type": "TEXT",
       "page": 1,
       "coordinates": {
-        "x": 500,
-        "y": 400,
-        "width": 300,
-        "height": 40
+        "x": 513,
+        "y": 590,
+        "width": 500,
+        "height": 33
       },
       "required": true,
-      "preprocessing": ["denoise", "remove_lines"]
+      "preprocessing": [
+        "denoise",
+        "remove_lines"
+      ]
     },
     {
       "id": 15,
@@ -273,13 +381,15 @@
       "type": "NUMERIC",
       "page": 1,
       "coordinates": {
-        "x": 500,
-        "y": 445,
-        "width": 100,
-        "height": 40
+        "x": 571,
+        "y": 645,
+        "width": 390,
+        "height": 26
       },
       "required": true,
-      "preprocessing": ["denoise"],
+      "preprocessing": [
+        "denoise"
+      ],
       "validation": {
         "min": 1950,
         "max": 2030
@@ -292,15 +402,27 @@
       "type": "OMR_SINGLE",
       "page": 1,
       "coordinates": {
-        "x": 500,
-        "y": 485,
-        "width": 280,
-        "height": 50
+        "x": 515,
+        "y": 704,
+        "width": 466,
+        "height": 64
       },
       "required": true,
       "omr_options": [
-        {"label": "1", "value": "M", "text": "Мушки"},
-        {"label": "2", "value": "Z", "text": "Женски"}
+        {
+          "label": "1",
+          "value": "M",
+          "text": "Мушки",
+          "relative_y": 0,
+          "height": 69
+        },
+        {
+          "label": "2",
+          "value": "Z",
+          "text": "Женски",
+          "relative_y": 69,
+          "height": 69
+        }
       ]
     },
     {
@@ -310,13 +432,15 @@
       "type": "NUMERIC",
       "page": 1,
       "coordinates": {
-        "x": 620,
-        "y": 540,
+        "x": 815,
+        "y": 779,
         "width": 150,
         "height": 40
       },
       "required": true,
-      "preprocessing": ["denoise"],
+      "preprocessing": [
+        "denoise"
+      ],
       "validation": {
         "min": 1940,
         "max": 2010
@@ -329,13 +453,16 @@
       "type": "TEXT",
       "page": 1,
       "coordinates": {
-        "x": 500,
-        "y": 590,
-        "width": 300,
-        "height": 40
+        "x": 527,
+        "y": 853,
+        "width": 493,
+        "height": 25
       },
       "required": true,
-      "preprocessing": ["denoise", "remove_lines"]
+      "preprocessing": [
+        "denoise",
+        "remove_lines"
+      ]
     },
     {
       "id": 19,
@@ -344,13 +471,16 @@
       "type": "TEXT",
       "page": 1,
       "coordinates": {
-        "x": 500,
-        "y": 640,
-        "width": 300,
-        "height": 35
+        "x": 547,
+        "y": 937,
+        "width": 430,
+        "height": 43
       },
       "required": true,
-      "preprocessing": ["denoise", "remove_lines"]
+      "preprocessing": [
+        "denoise",
+        "remove_lines"
+      ]
     },
     {
       "id": 20,
@@ -359,13 +489,16 @@
       "type": "TEXT",
       "page": 1,
       "coordinates": {
-        "x": 500,
-        "y": 680,
+        "x": 599,
+        "y": 1001,
         "width": 300,
         "height": 35
       },
       "required": false,
-      "preprocessing": ["denoise", "remove_lines"]
+      "preprocessing": [
+        "denoise",
+        "remove_lines"
+      ]
     },
     {
       "id": 21,
@@ -374,13 +507,16 @@
       "type": "TEXT",
       "page": 1,
       "coordinates": {
-        "x": 500,
-        "y": 720,
-        "width": 300,
-        "height": 35
+        "x": 514,
+        "y": 1053,
+        "width": 476,
+        "height": 28
       },
       "required": true,
-      "preprocessing": ["denoise", "remove_lines"]
+      "preprocessing": [
+        "denoise",
+        "remove_lines"
+      ]
     },
     {
       "id": 22,
@@ -389,13 +525,16 @@
       "type": "TEXT",
       "page": 1,
       "coordinates": {
-        "x": 500,
-        "y": 770,
+        "x": 616,
+        "y": 1131,
         "width": 300,
         "height": 40
       },
       "required": true,
-      "preprocessing": ["denoise", "remove_lines"]
+      "preprocessing": [
+        "denoise",
+        "remove_lines"
+      ]
     },
     {
       "id": 23,
@@ -404,13 +543,16 @@
       "type": "TEXT",
       "page": 1,
       "coordinates": {
-        "x": 500,
-        "y": 820,
-        "width": 300,
-        "height": 45
+        "x": 584,
+        "y": 1219,
+        "width": 323,
+        "height": 25
       },
       "required": false,
-      "preprocessing": ["denoise", "remove_lines"]
+      "preprocessing": [
+        "denoise",
+        "remove_lines"
+      ]
     },
     {
       "id": 24,
@@ -419,16 +561,31 @@
       "type": "OMR_SINGLE",
       "page": 1,
       "coordinates": {
-        "x": 500,
-        "y": 870,
-        "width": 300,
-        "height": 60
+        "x": 535,
+        "y": 1274,
+        "width": 420,
+        "height": 110
       },
       "required": true,
       "omr_options": [
-        {"label": "1", "value": "Neozenjen/Neudata"},
-        {"label": "2", "value": "Ozenjen/Udata"},
-        {"label": "3", "value": "Razveden/Razvedena"}
+        {
+          "label": "1",
+          "value": "Neozenjen/Neudata",
+          "relative_y": 0,
+          "height": 113
+        },
+        {
+          "label": "2",
+          "value": "Ozenjen/Udata",
+          "relative_y": 113,
+          "height": 113
+        },
+        {
+          "label": "3",
+          "value": "Razveden/Razvedena",
+          "relative_y": 226,
+          "height": 113
+        }
       ]
     },
     {
@@ -438,13 +595,16 @@
       "type": "TEXT",
       "page": 2,
       "coordinates": {
-        "x": 80,
-        "y": 60,
-        "width": 350,
-        "height": 70
+        "x": 100,
+        "y": 102,
+        "width": 389,
+        "height": 75
       },
       "required": true,
-      "preprocessing": ["denoise", "remove_lines"]
+      "preprocessing": [
+        "denoise",
+        "remove_lines"
+      ]
     },
     {
       "id": 26,
@@ -453,19 +613,37 @@
       "type": "OMR_SINGLE",
       "page": 2,
       "coordinates": {
-        "x": 80,
-        "y": 140,
-        "width": 350,
-        "height": 120
+        "x": 96,
+        "y": 242,
+        "width": 407,
+        "height": 111
       },
       "required": true,
       "omr_options": [
-        {"label": "1", "value": "Kod roditelja"},
-        {"label": "2", "value": "Iznajmljen stan"},
-        {"label": "3", "value": "Studentski dom"},
-        {"label": "4", "value": "Sopstveni stan"},
-        {"label": "5", "value": "Kod rodjaka"},
-        {"label": "6", "value": "Drugo"}
+        {
+          "label": "1",
+          "value": "Kod roditelja"
+        },
+        {
+          "label": "2",
+          "value": "Iznajmljen stan"
+        },
+        {
+          "label": "3",
+          "value": "Studentski dom"
+        },
+        {
+          "label": "4",
+          "value": "Sopstveni stan"
+        },
+        {
+          "label": "5",
+          "value": "Kod rodjaka"
+        },
+        {
+          "label": "6",
+          "value": "Drugo"
+        }
       ]
     },
     {
@@ -475,20 +653,41 @@
       "type": "OMR_MULTI",
       "page": 2,
       "coordinates": {
-        "x": 80,
-        "y": 270,
-        "width": 350,
-        "height": 150
+        "x": 88,
+        "y": 429,
+        "width": 415,
+        "height": 239
       },
       "required": true,
       "omr_options": [
-        {"label": "1", "value": "Izdrzavanje od roditelja"},
-        {"label": "2", "value": "Licni prihodi"},
-        {"label": "3", "value": "Stipendija javne uprave"},
-        {"label": "4", "value": "Kredit javne uprave"},
-        {"label": "5", "value": "Stipendije firmi i kompanija"},
-        {"label": "6", "value": "Komercijalni kredit"},
-        {"label": "7", "value": "Drugi izvori finansiranja"}
+        {
+          "label": "1",
+          "value": "Izdrzavanje od roditelja"
+        },
+        {
+          "label": "2",
+          "value": "Licni prihodi"
+        },
+        {
+          "label": "3",
+          "value": "Stipendija javne uprave"
+        },
+        {
+          "label": "4",
+          "value": "Kredit javne uprave"
+        },
+        {
+          "label": "5",
+          "value": "Stipendije firmi i kompanija"
+        },
+        {
+          "label": "6",
+          "value": "Komercijalni kredit"
+        },
+        {
+          "label": "7",
+          "value": "Drugi izvori finansiranja"
+        }
       ]
     },
     {
@@ -498,13 +697,15 @@
       "type": "TEXT",
       "page": 2,
       "coordinates": {
-        "x": 80,
-        "y": 440,
-        "width": 200,
-        "height": 40
+        "x": 455,
+        "y": 701,
+        "width": 47,
+        "height": 51
       },
       "required": false,
-      "preprocessing": ["denoise"]
+      "preprocessing": [
+        "denoise"
+      ]
     },
     {
       "id": 29,
@@ -513,15 +714,21 @@
       "type": "OMR_SINGLE",
       "page": 2,
       "coordinates": {
-        "x": 80,
-        "y": 490,
-        "width": 300,
-        "height": 45
+        "x": 91,
+        "y": 811,
+        "width": 413,
+        "height": 52
       },
       "required": true,
       "omr_options": [
-        {"label": "1", "value": "Da"},
-        {"label": "2", "value": "Ne"}
+        {
+          "label": "1",
+          "value": "Da"
+        },
+        {
+          "label": "2",
+          "value": "Ne"
+        }
       ]
     },
     {
@@ -531,18 +738,33 @@
       "type": "OMR_SINGLE",
       "page": 2,
       "coordinates": {
-        "x": 80,
-        "y": 550,
-        "width": 350,
-        "height": 100
+        "x": 93,
+        "y": 923,
+        "width": 408,
+        "height": 114
       },
       "required": true,
       "omr_options": [
-        {"label": "1", "value": "Ne"},
-        {"label": "2", "value": "Da, dete/decu"},
-        {"label": "3", "value": "Da, suprug/supruga"},
-        {"label": "4", "value": "Da, roditelje"},
-        {"label": "5", "value": "Da, druga lica"}
+        {
+          "label": "1",
+          "value": "Ne"
+        },
+        {
+          "label": "2",
+          "value": "Da, dete/decu"
+        },
+        {
+          "label": "3",
+          "value": "Da, suprug/supruga"
+        },
+        {
+          "label": "4",
+          "value": "Da, roditelje"
+        },
+        {
+          "label": "5",
+          "value": "Da, druga lica"
+        }
       ]
     },
     {
@@ -552,15 +774,21 @@
       "type": "OMR_SINGLE",
       "page": 2,
       "coordinates": {
-        "x": 80,
-        "y": 660,
-        "width": 300,
-        "height": 45
+        "x": 87,
+        "y": 1081,
+        "width": 415,
+        "height": 55
       },
       "required": true,
       "omr_options": [
-        {"label": "1", "value": "Da"},
-        {"label": "2", "value": "Ne"}
+        {
+          "label": "1",
+          "value": "Da"
+        },
+        {
+          "label": "2",
+          "value": "Ne"
+        }
       ]
     },
     {
@@ -570,13 +798,16 @@
       "type": "TEXT",
       "page": 2,
       "coordinates": {
-        "x": 500,
-        "y": 60,
-        "width": 300,
-        "height": 40
+        "x": 544,
+        "y": 137,
+        "width": 379,
+        "height": 27
       },
       "required": false,
-      "preprocessing": ["denoise", "remove_lines"]
+      "preprocessing": [
+        "denoise",
+        "remove_lines"
+      ]
     },
     {
       "id": 33,
@@ -585,19 +816,37 @@
       "type": "OMR_SINGLE",
       "page": 2,
       "coordinates": {
-        "x": 500,
-        "y": 110,
-        "width": 300,
-        "height": 150
+        "x": 537,
+        "y": 237,
+        "width": 414,
+        "height": 135
       },
       "required": true,
       "omr_options": [
-        {"label": "1", "value": "Osnovna skola ili manje"},
-        {"label": "2", "value": "Srednja skola"},
-        {"label": "3", "value": "Visa ili visoka skola"},
-        {"label": "4", "value": "Magisterijum/Master"},
-        {"label": "5", "value": "Doktorat"},
-        {"label": "9", "value": "Nepoznato"}
+        {
+          "label": "1",
+          "value": "Osnovna skola ili manje"
+        },
+        {
+          "label": "2",
+          "value": "Srednja skola"
+        },
+        {
+          "label": "3",
+          "value": "Visa ili visoka skola"
+        },
+        {
+          "label": "4",
+          "value": "Magisterijum/Master"
+        },
+        {
+          "label": "5",
+          "value": "Doktorat"
+        },
+        {
+          "label": "9",
+          "value": "Nepoznato"
+        }
       ]
     },
     {
@@ -607,19 +856,37 @@
       "type": "OMR_SINGLE",
       "page": 2,
       "coordinates": {
-        "x": 500,
-        "y": 270,
-        "width": 300,
-        "height": 150
+        "x": 543,
+        "y": 372,
+        "width": 411,
+        "height": 159
       },
       "required": true,
       "omr_options": [
-        {"label": "1", "value": "Osnovna skola ili manje"},
-        {"label": "2", "value": "Srednja skola"},
-        {"label": "3", "value": "Visa ili visoka skola"},
-        {"label": "4", "value": "Magisterijum/Master"},
-        {"label": "5", "value": "Doktorat"},
-        {"label": "9", "value": "Nepoznato"}
+        {
+          "label": "1",
+          "value": "Osnovna skola ili manje"
+        },
+        {
+          "label": "2",
+          "value": "Srednja skola"
+        },
+        {
+          "label": "3",
+          "value": "Visa ili visoka skola"
+        },
+        {
+          "label": "4",
+          "value": "Magisterijum/Master"
+        },
+        {
+          "label": "5",
+          "value": "Doktorat"
+        },
+        {
+          "label": "9",
+          "value": "Nepoznato"
+        }
       ]
     },
     {
@@ -629,26 +896,65 @@
       "type": "OMR_MULTI",
       "page": 2,
       "coordinates": {
-        "x": 500,
-        "y": 430,
-        "width": 300,
-        "height": 280
+        "x": 533,
+        "y": 685,
+        "width": 439,
+        "height": 462
       },
       "required": false,
       "omr_options": [
-        {"label": "1", "value": "Pomoc u obavljanju osnovnih radnji"},
-        {"label": "2", "value": "Arhitektonska dostupnost - prilaz"},
-        {"label": "3", "value": "Arhitektonska dostupnost - slepima"},
-        {"label": "4", "value": "Skeniranje materijala u formatu"},
-        {"label": "5", "value": "Upotreba asistivnih tehnologija"},
-        {"label": "6", "value": "Angažovanje tumaca za znakovni jezik"},
-        {"label": "7", "value": "Prevoz do visokoskolske ustanove"},
-        {"label": "8", "value": "Postajanje induktivnih petlji"},
-        {"label": "9", "value": "Pomoc u verbalnom obrazanju"},
-        {"label": "10", "value": "Pomoc u prepoznavanju funkcija ustanove"},
-        {"label": "11", "value": "Prilagodjavanje vremena trajanja"},
-        {"label": "12", "value": "Pomoc u savladavanju akademskih obaveza"},
-        {"label": "13", "value": "Nista od navedenog"}
+        {
+          "label": "1",
+          "value": "Pomoc u obavljanju osnovnih radnji"
+        },
+        {
+          "label": "2",
+          "value": "Arhitektonska dostupnost - prilaz"
+        },
+        {
+          "label": "3",
+          "value": "Arhitektonska dostupnost - slepima"
+        },
+        {
+          "label": "4",
+          "value": "Skeniranje materijala u formatu"
+        },
+        {
+          "label": "5",
+          "value": "Upotreba asistivnih tehnologija"
+        },
+        {
+          "label": "6",
+          "value": "Angažovanje tumaca za znakovni jezik"
+        },
+        {
+          "label": "7",
+          "value": "Prevoz do visokoskolske ustanove"
+        },
+        {
+          "label": "8",
+          "value": "Postajanje induktivnih petlji"
+        },
+        {
+          "label": "9",
+          "value": "Pomoc u verbalnom obrazanju"
+        },
+        {
+          "label": "10",
+          "value": "Pomoc u prepoznavanju funkcija ustanove"
+        },
+        {
+          "label": "11",
+          "value": "Prilagodjavanje vremena trajanja"
+        },
+        {
+          "label": "12",
+          "value": "Pomoc u savladavanju akademskih obaveza"
+        },
+        {
+          "label": "13",
+          "value": "Nista od navedenog"
+        }
       ]
     },
     {
@@ -658,13 +964,16 @@
       "type": "DATE",
       "page": 2,
       "coordinates": {
-        "x": 80,
-        "y": 750,
-        "width": 250,
-        "height": 45
+        "x": 38,
+        "y": 1222,
+        "width": 445,
+        "height": 43
       },
       "required": true,
-      "preprocessing": ["denoise", "remove_lines"],
+      "preprocessing": [
+        "denoise",
+        "remove_lines"
+      ],
       "validation": {
         "format": "DD.MM.YYYY"
       }
@@ -676,8 +985,8 @@
       "type": "SIGNATURE",
       "page": 2,
       "coordinates": {
-        "x": 80,
-        "y": 800,
+        "x": 109,
+        "y": 1264,
         "width": 300,
         "height": 60
       },

@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SV-20 Template Creator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --panel-bg: #1e293b;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --accent-color: #3b82f6;
+            --accent-hover: #2563eb;
+            --border-color: #334155;
+            --danger-color: #ef4444;
+        }
+
+        * {
+            box-sizing: border_box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 320px;
+            background-color: var(--panel-bg);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            z-index: 10;
+            box-shadow: 4px 0 24px rgba(0, 0, 0, 0.2);
+        }
+
+        .header {
+            margin-bottom: 24px;
+        }
+
+        .header h1 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            background: linear-gradient(to right, #60a5fa, #3b82f6);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header p {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            padding: 10px 16px;
+            border-radius: 8px;
+            border: none;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .btn-primary {
+            background-color: var(--accent-color);
+            color: white;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .btn-primary:hover {
+            background-color: var(--accent-hover);
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background-color: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--text-primary);
+            color: var(--text-primary);
+        }
+
+        .field-list {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding-right: 5px;
+        }
+
+        .field-item {
+            padding: 12px;
+            background-color: rgba(255, 255, 255, 0.03);
+            border-radius: 8px;
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .field-item:hover {
+            background-color: rgba(255, 255, 255, 0.06);
+        }
+
+        .field-item.active {
+            border-color: var(--accent-color);
+            background-color: rgba(59, 130, 246, 0.1);
+        }
+
+        .field-name {
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .field-meta {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .eye-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 2px 4px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+        }
+
+        .eye-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+        }
+
+        /* Main Canvas Area */
+        .preview-area {
+            flex: 1;
+            position: relative;
+            background-color: #0b101e;
+            overflow: auto;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 40px;
+            background-image: radial-gradient(#1e293b 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        .canvas-container {
+            position: relative;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+        }
+
+        canvas {
+            display: block;
+            border-radius: 4px;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-secondary);
+        }
+
+        #uploadInput {
+            display: none;
+        }
+
+        .status-msg {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            border-radius: 8px;
+            background: rgba(16, 185, 129, 0.2);
+            border: 1px solid rgba(16, 185, 129, 0.5);
+            color: #34d399;
+            font-size: 0.875rem;
+            transform: translateY(100px);
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            backdrop-filter: blur(10px);
+        }
+
+        .status-msg.show {
+            transform: translateY(0);
+        }
+
+        /* Loading overlay */
+        .loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(15, 23, 42, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(5px);
+            display: none;
+        }
+
+        .loader.active {
+            display: flex;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: var(--accent-color);
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="loader" id="loader">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="header">
+            <h1>SV-20 Template Creator</h1>
+            <p>Adjust fields & export template</p>
+        </div>
+
+        <div class="controls">
+            <button class="btn btn-secondary" onclick="document.getElementById('uploadInput').click()">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                </svg>
+                Upload Ref
+            </button>
+            <input type="file" id="uploadInput" accept="image/*,.pdf">
+
+            <button class="btn btn-primary" onclick="saveTemplate()">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-4 4m0 0l-4-4m4 4V4">
+                    </path>
+                </svg>
+                Save
+            </button>
+        </div>
+
+        <div class="filters" style="display: flex; gap: 5px; margin-bottom: 10px;">
+            <button class="btn btn-secondary" style="flex:1; padding: 6px; font-size: 0.75rem;"
+                onclick="togglePage(1)">Page 1</button>
+            <button class="btn btn-secondary" style="flex:1; padding: 6px; font-size: 0.75rem;"
+                onclick="togglePage(2)">Page 2</button>
+            <button class="btn btn-secondary" style="flex:1; padding: 6px; font-size: 0.75rem;" onclick="hideAll()">Hide
+                All</button>
+        </div>
+
+        <div class="field-list" id="fieldList">
+            <!-- Fields will be generated here -->
+        </div>
+    </div>
+
+    <!-- Main Editor -->
+    <div class="preview-area">
+        <div class="canvas-container">
+            <canvas id="editorCanvas"></canvas>
+        </div>
+    </div>
+
+    <div class="status-msg" id="statusMsg">Template saved successfully!</div>
+
+    <script>
+        // State
+        let template = null;
+        let image = new Image();
+        let scale = 1;
+        let activeFieldId = null;
+        let isDragging = false;
+        let isResizing = false;
+        let dragStart = { x: 0, y: 0 };
+        let activeRect = null;
+        let resizeHandle = null;
+
+        const canvas = document.getElementById('editorCanvas');
+        const ctx = canvas.getContext('2d');
+        const fieldListEl = document.getElementById('fieldList');
+
+        const HANDLE_SIZE = 8;
+        const TARGET_WIDTH = 1024;
+
+        // Initialization
+        async function init() {
+            showLoader(true);
+            try {
+                const res = await fetch('/api/template');
+                const data = await res.json();
+                template = data;
+
+                // Initialize visibility state if not present
+                if (template.fields) {
+                    template.fields.forEach(f => {
+                        if (typeof f._visible === 'undefined') f._visible = true;
+                    });
+                }
+
+                renderFieldList();
+            } catch (e) {
+                console.error("Failed to load template", e);
+                showStatus("Failed to load template", true);
+            }
+            showLoader(false);
+        }
+
+        // Image Handling (with PDF support)
+        // Page Management
+        let currentPage = 1;
+        let isPdf = false;
+
+        async function loadPage(pageNum) {
+            console.log(`[DEBUG] Loading page ${pageNum}`);
+            if (!isPdf) {
+                // If not PDF (or no file uploaded), we just update fields
+                updateFieldVisibility(pageNum);
+                return;
+            }
+
+            showLoader(true);
+            try {
+                const res = await fetch(`/api/template/render-page?page=${pageNum}`);
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.detail || "Failed to load page");
+                }
+
+                const data = await res.json();
+
+                image = new Image();
+                image.onload = () => {
+                    canvas.width = TARGET_WIDTH;
+                    const aspect = image.height / image.width;
+                    canvas.height = TARGET_WIDTH * aspect;
+                    currentPage = pageNum;
+                    updateFieldVisibility(pageNum);
+                    draw();
+                };
+                image.src = data.image_data;
+
+            } catch (e) {
+                console.error("Error loading page:", e);
+                showStatus("Failed to load page: " + e.message, true);
+                // Fallback: just update visibility
+                updateFieldVisibility(pageNum);
+            }
+            showLoader(false);
+        }
+
+        function updateFieldVisibility(pageNum) {
+            currentPage = pageNum;
+            // Update visibility based on page number
+            if (template) {
+                template.fields.forEach(f => {
+                    const fPage = f.page || 1;
+                    f._visible = (fPage === pageNum);
+                });
+            }
+
+            // Update buttons active state
+            document.querySelectorAll('.filters .btn').forEach(b => b.classList.remove('btn-primary'));
+            // This is a bit hacky selector, but works for now
+            // const btn = document.querySelector(...) 
+
+            renderFieldList();
+            draw();
+        }
+
+        window.togglePage = function (pageNum) {
+            loadPage(pageNum);
+        };
+
+        window.hideAll = function () {
+            if (!template) return;
+            template.fields.forEach(f => f._visible = false);
+            activeFieldId = null;
+            renderFieldList();
+            draw();
+        };
+
+        // File Upload Handler Update
+        document.getElementById('uploadInput').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            showLoader(true);
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const res = await fetch('/api/template/render-upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!res.ok) throw new Error("Upload failed");
+                const data = await res.json();
+
+                isPdf = data.is_pdf; // Store flag
+                console.log(`[DEBUG] Uploaded. Is PDF: ${isPdf}`);
+
+                image = new Image();
+                image.onload = () => {
+                    canvas.width = TARGET_WIDTH;
+                    const aspect = image.height / image.width;
+                    canvas.height = TARGET_WIDTH * aspect;
+                    // Default to page 1
+                    currentPage = 1;
+                    updateFieldVisibility(1);
+                    draw();
+                };
+                image.src = data.image_data;
+                showStatus("Reference loaded!");
+
+            } catch (err) {
+                console.error(err);
+                showStatus("Error: " + err.message, true);
+            }
+            showLoader(false);
+            e.target.value = '';
+        });
+
+        // Rendering
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Image
+            if (image.src) {
+                ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+            } else {
+                ctx.fillStyle = "#1e293b";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "#475569";
+                ctx.font = "20px Inter";
+                ctx.textAlign = "center";
+                ctx.fillText("Upload an image to start editing", canvas.width / 2, canvas.height / 2);
+            }
+
+            // Draw Overlay
+            ctx.fillStyle = "rgba(0,0,0,0.3)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (!template) return;
+
+            // Draw Fields
+            template.fields.forEach(field => {
+                // Check visibility
+                if (!field._visible) return;
+
+                const { x, y, width, height } = field.coordinates;
+                const isActive = field.id === activeFieldId;
+
+                // Box
+                ctx.beginPath();
+                ctx.rect(x, y, width, height);
+                ctx.fillStyle = isActive ? "rgba(59, 130, 246, 0.2)" : "rgba(255, 255, 255, 0.05)";
+                ctx.fill();
+                ctx.lineWidth = isActive ? 2 : 1;
+                ctx.strokeStyle = isActive ? "#3b82f6" : "rgba(255,255,255,0.4)";
+                ctx.stroke();
+
+                // Handles
+                if (isActive) {
+                    drawHandles(x, y, width, height);
+                }
+
+                // Label
+                ctx.fillStyle = isActive ? "#3b82f6" : "#cbd5e1";
+                ctx.font = "12px Inter";
+                ctx.fillText(field.id, x + 2, y - 4);
+            });
+        }
+
+        function drawHandles(x, y, w, h) {
+            ctx.fillStyle = "#3b82f6";
+            const s = HANDLE_SIZE;
+            ctx.fillRect(x - s / 2, y - s / 2, s, s);
+            ctx.fillRect(x + w - s / 2, y - s / 2, s, s);
+            ctx.fillRect(x + w - s / 2, y + h - s / 2, s, s);
+            ctx.fillRect(x - s / 2, y + h - s / 2, s, s);
+        }
+
+        // MOUSE DOWN - Start drag/resize
+        canvas.addEventListener('mousedown', (e) => {
+            const pos = getMousePos(e);
+
+            // First check if clicking on an active field's resize handle
+            if (activeFieldId) {
+                const activeField = template.fields.find(f => f.id === activeFieldId);
+                if (activeField && activeField._visible) {
+                    const handle = getResizeHandle(pos.x, pos.y, activeField.coordinates);
+                    if (handle) {
+                        isResizing = true;
+                        resizeHandle = handle;
+                        dragStart = { x: pos.x, y: pos.y };
+                        activeRect = { ...activeField.coordinates };
+                        return;
+                    }
+                }
+            }
+
+            // Check if clicking on any visible field
+            for (const field of template.fields) {
+                if (!field._visible) continue;
+                if (isPointInRect(pos.x, pos.y, field.coordinates)) {
+                    activeFieldId = field.id;
+                    isDragging = true;
+                    dragStart = { x: pos.x, y: pos.y };
+                    activeRect = { ...field.coordinates };
+                    renderFieldList();
+                    draw();
+                    return;
+                }
+            }
+
+            // Click on empty space - deselect
+            activeFieldId = null;
+            renderFieldList();
+            draw();
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            const pos = getMousePos(e);
+
+            // Cursor
+            if (activeFieldId && !isDragging) {
+                const field = template.fields.find(f => f.id === activeFieldId);
+                if (field && field._visible) {
+                    const handle = getResizeHandle(pos.x, pos.y, field.coordinates);
+                    if (handle) canvas.style.cursor = handle + '-resize';
+                    else if (isPointInRect(pos.x, pos.y, field.coordinates)) canvas.style.cursor = 'move';
+                    else canvas.style.cursor = 'default';
+                }
+            } else if (!isDragging && !isResizing) {
+                canvas.style.cursor = 'default';
+            }
+
+            if (isDragging && activeFieldId) {
+                const field = template.fields.find(f => f.id === activeFieldId);
+                const dx = pos.x - dragStart.x;
+                const dy = pos.y - dragStart.y;
+
+                field.coordinates.x = activeRect.x + dx;
+                field.coordinates.y = activeRect.y + dy;
+                draw();
+            }
+
+            if (isResizing && activeFieldId) {
+                const field = template.fields.find(f => f.id === activeFieldId);
+                const dx = pos.x - dragStart.x;
+                const dy = pos.y - dragStart.y;
+
+                if (resizeHandle === 'se') {
+                    field.coordinates.width = Math.max(10, activeRect.width + dx);
+                    field.coordinates.height = Math.max(10, activeRect.height + dy);
+                }
+                draw();
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (isDragging || isResizing) {
+                isDragging = false;
+                isResizing = false;
+                if (activeFieldId) {
+                    const field = template.fields.find(f => f.id === activeFieldId);
+                    field.coordinates.x = Math.round(field.coordinates.x);
+                    field.coordinates.y = Math.round(field.coordinates.y);
+                    field.coordinates.width = Math.round(field.coordinates.width);
+                    field.coordinates.height = Math.round(field.coordinates.height);
+                }
+                draw();
+            }
+        });
+
+        // Helpers
+        function getMousePos(evt) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            return {
+                x: (evt.clientX - rect.left) * scaleX,
+                y: (evt.clientY - rect.top) * scaleY
+            };
+        }
+
+        function isPointInRect(x, y, rect) {
+            return x >= rect.x && x <= rect.x + rect.width &&
+                y >= rect.y && y <= rect.y + rect.height;
+        }
+
+        function getResizeHandle(x, y, rect) {
+            const s = HANDLE_SIZE + 4;
+            if (x >= rect.x + rect.width - s && x <= rect.x + rect.width + s &&
+                y >= rect.y + rect.height - s && y <= rect.y + rect.height + s) {
+                return 'se';
+            }
+            return null;
+        }
+
+        // Sidebar Rendering
+        function renderFieldList() {
+            fieldListEl.innerHTML = '';
+            template.fields.forEach(field => {
+                const el = document.createElement('div');
+                el.className = `field-item ${field.id === activeFieldId ? 'active' : ''}`;
+
+                // Click to select
+                el.onclick = (e) => {
+                    // Ignore clicks on the eye button
+                    if (e.target.closest('.eye-btn')) return;
+                    setActiveField(field.id);
+                };
+
+                const page = field.page || 1;
+                const isVisible = field._visible;
+
+                el.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: start;">
+                        <div class="field-name">${field.id}. ${field.name}</div>
+                        <button class="eye-btn" onclick="toggleFieldVisibility(${field.id}, this)">
+                            ${getEyeIcon(isVisible)}
+                        </button>
+                    </div>
+                    <div class="field-meta">
+                        <span>${field.type}</span>
+                        <span style="background: rgba(255,255,255,0.1); padding: 1px 4px; border-radius: 4px;">p${page}</span>
+                    </div>
+                `;
+                fieldListEl.appendChild(el);
+            });
+        }
+
+        function getEyeIcon(visible) {
+            if (visible) {
+                return `<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>`;
+            } else {
+                return `<svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#64748b"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>`;
+            }
+        }
+
+        function setActiveField(id) {
+            activeFieldId = id;
+
+            // Ensure visible when finding
+            const field = template.fields.find(f => f.id === id);
+            if (field && !field._visible) {
+                field._visible = true;
+            }
+
+            renderFieldList();
+            draw();
+        }
+
+        // Toggle individual field visibility
+        window.toggleFieldVisibility = function(id, btnElement) {
+            const field = template.fields.find(f => f.id === id);
+            if (!field) return;
+
+            field._visible = !field._visible;
+
+            // Update the icon
+            if (btnElement) {
+                btnElement.innerHTML = getEyeIcon(field._visible);
+            }
+
+            // If hiding the active field, deselect it
+            if (!field._visible && activeFieldId === id) {
+                activeFieldId = null;
+            }
+
+            renderFieldList();
+            draw();
+        };
+
+        // API
+        async function saveTemplate() {
+            if (!template) return;
+            showLoader(true);
+
+            // Clean up internal _visible props before saving
+            const cleanTemplate = JSON.parse(JSON.stringify(template));
+            cleanTemplate.fields.forEach(f => delete f._visible);
+
+            try {
+                const res = await fetch('/api/template/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(cleanTemplate)
+                });
+
+                if (res.ok) {
+                    showStatus("Template saved successfully!");
+                } else {
+                    const err = await res.text();
+                    showStatus("Error saving: " + err, true);
+                }
+            } catch (e) {
+                showStatus("Network error", true);
+            }
+            showLoader(false);
+        }
+
+        function showStatus(msg, isError) {
+            const el = document.getElementById('statusMsg');
+            el.textContent = msg;
+            el.style.color = isError ? '#ef4444' : '#34d399';
+            el.classList.add('show');
+            setTimeout(() => el.classList.remove('show'), 3000);
+        }
+
+        function showLoader(show) {
+            document.getElementById('loader').classList.toggle('active', show);
+        }
+
+        init();
+    </script>
+</body>
+
+</html>

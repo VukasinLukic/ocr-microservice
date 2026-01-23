@@ -1,7 +1,10 @@
 """
-SV-20 OCR Mikroservis - OMR Logic
-Optical Mark Recognition - detekcija zaokruzenih/oznacenih opcija.
-Koristi se za polja kao sto su: Pol, Vrsta studija, Semestar, itd.
+SV-20 OCR Mikroservis - OMR Logic (Improved)
+Optical Mark Recognition - detekcija ZAOKRUŽENIH BROJEVA.
+
+SV-20 obrazac koristi zaokruživanje brojeva (circled numbers),
+a ne popunjavanje kružića (bubbles). Ova verzija je optimizovana
+za detekciju ručno nacrtanih krugova oko štampanih brojeva.
 """
 
 import cv2
@@ -14,18 +17,23 @@ logger = logging.getLogger(__name__)
 
 class OMRProcessor:
     """
-    Optical Mark Recognition - detekcija zaokruzenih/oznacenih opcija.
-    Koristi se za polja kao sto su: Pol, Godina studija, Semestar.
+    Optical Mark Recognition - detekcija zaokruženih brojeva.
+
+    SV-20 obrazac koristi stil gde student zaokružuje štampani broj,
+    umesto da popunjava kružić. Ova klasa koristi kombinaciju:
+    1. Detekcija kontura (zaokruženih oblasti)
+    2. Analiza "ink density" oko svakog broja
+    3. Hough Circle Transform za dodatnu verifikaciju
     """
 
     def __init__(self,
-                 fill_threshold: float = 0.25,
-                 min_contour_area: int = 50,
+                 fill_threshold: float = 0.15,
+                 min_contour_area: int = 100,
                  circle_detection_threshold: float = 0.3):
         """
         Args:
             fill_threshold: Procenat popunjenosti za detekciju (0.0-1.0)
-            min_contour_area: Minimalna povrsina konture
+            min_contour_area: Minimalna površina konture
             circle_detection_threshold: Prag za detekciju kruga
         """
         self.fill_threshold = fill_threshold
@@ -35,23 +43,194 @@ class OMRProcessor:
     def detect_marked_option(self,
                              image: np.ndarray,
                              options: List[Dict],
-                             method: str = "fill_ratio") -> Dict:
+                             method: str = "auto") -> Dict:
         """
-        Detektuje koja opcija je oznacena/zaokruzena.
+        Glavna metoda za detekciju označene opcije.
+
+        Koristi kombinaciju metoda:
+        1. Prvo pokušava detekciju zaokruženih brojeva (circle ink detection)
+        2. Fallback na pixel density ako krug nije detektovan
 
         Args:
-            image: Slika polja sa opcijama
-            options: Lista opcija sa koordinatama iz template-a
-                    [{"label": "1", "value": "M", "relative_y": 20}, ...]
-            method: "fill_ratio" ili "circle_detection"
+            image: Slika ROI-a sa opcijama
+            options: Lista opcija sa koordinatama
+            method: "auto", "circle", ili "density"
 
         Returns:
-            Dict sa detektovanom opcijom i confidence
+            Dict sa detektovanom opcijom, confidence, itd.
         """
-        if method == "circle_detection":
-            return self.detect_circled_option(image, options)
+        if len(image.shape) == 3:
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = image.copy()
 
-        gray = self._to_grayscale(image)
+        h, w = gray.shape[:2]
+
+        if not options:
+            return {'value': None, 'confidence': 0.0, 'warning': 'Nema definisanih opcija'}
+
+        # Pripremi opcije ako nemaju koordinate
+        options = self._prepare_options(options, h, w)
+
+        # METODA 1: Detekcija zaokruženih oblasti (ink around numbers)
+        circle_result = self._detect_circled_number(gray, options)
+
+        if circle_result['confidence'] > 0.5:
+            logger.debug(f"Circle detection uspešno: {circle_result['value']} (conf={circle_result['confidence']:.2f})")
+            return circle_result
+
+        # METODA 2: Pixel density (fallback)
+        density_result = self._detect_by_ink_density(gray, options)
+
+        # Odaberi bolji rezultat
+        if circle_result['confidence'] > density_result['confidence']:
+            return circle_result
+        return density_result
+
+    def _detect_circled_number(self, gray: np.ndarray, options: List[Dict]) -> Dict:
+        """
+        Detektuje koji broj je zaokružen analizom "mastila" oko svakog broja.
+
+        Logika: Zaokružen broj ima više mastila (ink) oko sebe nego nezaokruženi.
+        Merimo količinu crnih piksela u PRSTENU oko centra svake opcije.
+        """
+        h, w = gray.shape[:2]
+
+        # Binarizacija
+        binary = cv2.adaptiveThreshold(
+            gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY_INV, 15, 5
+        )
+
+        # Ukloni sitne šumove
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2))
+        binary = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel)
+
+        results = []
+
+        for option in options:
+            # Dobij ROI za ovu opciju
+            x = option.get('x', 0)
+            y = option.get('relative_y', option.get('y', 0))
+            opt_w = option.get('width', w)
+            opt_h = option.get('height', 30)
+
+            # Osiguraj granice
+            x = max(0, min(x, w - 1))
+            y = max(0, min(y, h - 1))
+            x2 = min(w, x + opt_w)
+            y2 = min(h, y + opt_h)
+
+            if x2 <= x or y2 <= y:
+                results.append({
+                    'label': option['label'],
+                    'value': option.get('value', option['label']),
+                    'ring_ink': 0,
+                    'total_ink': 0,
+                    'score': 0
+                })
+                continue
+
+            roi = binary[y:y2, x:x2]
+            roi_h, roi_w = roi.shape[:2]
+
+            if roi_h < 5 or roi_w < 5:
+                continue
+
+            # Izračunaj "ink" u različitim zonama
+            # Centar (gde je štampani broj) vs. prsten oko centra (gde je zaokruženje)
+
+            center_x, center_y = roi_w // 2, roi_h // 2
+
+            # Kreiraj masku za PRSTEN (ring) oko centra
+            # Unutrašnji krug (štampani broj) - ignorišemo
+            # Spoljašnji prsten (zaokruženje) - merimo
+
+            inner_radius = min(roi_w, roi_h) // 4  # Unutrašnji radius
+            outer_radius = min(roi_w, roi_h) // 2  # Spoljašnji radius
+
+            mask_outer = np.zeros_like(roi)
+            mask_inner = np.zeros_like(roi)
+
+            cv2.circle(mask_outer, (center_x, center_y), outer_radius, 255, -1)
+            cv2.circle(mask_inner, (center_x, center_y), inner_radius, 255, -1)
+
+            # Ring maska = outer - inner
+            mask_ring = cv2.subtract(mask_outer, mask_inner)
+
+            # Ink u prstenu (zaokruženje)
+            ring_ink = cv2.countNonZero(cv2.bitwise_and(roi, mask_ring))
+            ring_area = cv2.countNonZero(mask_ring)
+
+            # Ukupan ink u ROI-u
+            total_ink = cv2.countNonZero(roi)
+            total_area = roi_h * roi_w
+
+            # Score: odnos ink-a u prstenu prema ukupnom
+            # Zaokružen broj ima više ink-a u prstenu
+            ring_density = ring_ink / ring_area if ring_area > 0 else 0
+            total_density = total_ink / total_area if total_area > 0 else 0
+
+            # Score kombinuje ring density i total density
+            # Zaokružen broj ima visoku ring density
+            score = ring_density * 2 + total_density
+
+            results.append({
+                'label': option['label'],
+                'value': option.get('value', option['label']),
+                'ring_ink': ring_ink,
+                'ring_density': ring_density,
+                'total_ink': total_ink,
+                'total_density': total_density,
+                'score': score
+            })
+
+            logger.debug(f"Option {option['label']}: ring_density={ring_density:.4f}, "
+                        f"total_density={total_density:.4f}, score={score:.4f}")
+
+        if not results:
+            return {
+                'value': None,
+                'confidence': 0.0,
+                'warning': 'Nije moguće analizirati opcije'
+            }
+
+        # Pronađi opciju sa najboljim score-om
+        best = max(results, key=lambda x: x['score'])
+
+        # Izračunaj confidence
+        scores = [r['score'] for r in results]
+        max_score = best['score']
+
+        if max_score < 0.01:
+            return {
+                'value': None,
+                'confidence': 0.0,
+                'warning': 'Nijedna opcija nije zaokružena',
+                'all_options': results
+            }
+
+        # Confidence: koliko je best bolji od ostalih
+        other_scores = [s for s in scores if s != max_score]
+        avg_other = sum(other_scores) / len(other_scores) if other_scores else 0
+
+        if avg_other > 0:
+            confidence = min((max_score / avg_other - 1) * 0.5, 1.0)
+        else:
+            confidence = 0.8 if max_score > 0.05 else 0.3
+
+        return {
+            'value': best['value'],
+            'label': best['label'],
+            'confidence': confidence,
+            'method': 'ring_ink_detection',
+            'all_options': results
+        }
+
+    def _detect_by_ink_density(self, gray: np.ndarray, options: List[Dict]) -> Dict:
+        """
+        Fallback metoda: detektuje opciju sa najviše "mastila" (ink).
+        """
         binary = cv2.adaptiveThreshold(
             gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
             cv2.THRESH_BINARY_INV, 11, 2
@@ -61,22 +240,11 @@ class OMRProcessor:
         results = []
 
         for option in options:
-            # Izracunaj ROI za ovu opciju
-            # Opcije mogu imati relative_y ili apsolutne koordinate
-            if 'x' in option and 'y' in option:
-                # Apsolutne koordinate
-                x = option.get('x', 0)
-                y = option.get('y', 0)
-                opt_w = option.get('width', 50)
-                opt_h = option.get('height', 30)
-            else:
-                # Relativne koordinate - opcija se odnosi na redove u polju
-                x = 0
-                y = option.get('relative_y', 0)
-                opt_w = w
-                opt_h = 25  # Default visina reda
+            x = option.get('x', 0)
+            y = option.get('relative_y', option.get('y', 0))
+            opt_w = option.get('width', w)
+            opt_h = option.get('height', 30)
 
-            # Osiguraj da je ROI validan
             x = max(0, min(x, w))
             y = max(0, min(y, h))
             x2 = min(w, x + opt_w)
@@ -87,166 +255,73 @@ class OMRProcessor:
 
             roi = binary[y:y2, x:x2]
 
-            if roi.size == 0:
-                continue
+            # Morfološko čišćenje - ukloni tekst, zadrži deblje linije (zaokruženje)
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+            roi_cleaned = cv2.morphologyEx(roi, cv2.MORPH_OPEN, kernel, iterations=1)
 
-            fill_ratio = self._calculate_fill_ratio(roi)
+            density = cv2.countNonZero(roi_cleaned) / roi_cleaned.size if roi_cleaned.size > 0 else 0
 
             results.append({
                 'label': option['label'],
                 'value': option.get('value', option['label']),
-                'fill_ratio': fill_ratio,
-                'detected': fill_ratio >= self.fill_threshold
+                'density': density
             })
 
-            logger.debug(f"Opcija {option['label']}: fill_ratio={fill_ratio:.3f}")
+        if not results:
+            return {'value': None, 'confidence': 0.0, 'warning': 'Nema rezultata'}
 
-        # Odredi rezultat
-        detected_options = [r for r in results if r['detected']]
+        best = max(results, key=lambda x: x['density'])
+        max_density = best['density']
 
-        if len(detected_options) == 1:
-            return {
-                'value': detected_options[0]['value'],
-                'label': detected_options[0]['label'],
-                'confidence': min(detected_options[0]['fill_ratio'] / self.fill_threshold * 0.5 + 0.5, 1.0),
-                'method': 'fill_ratio',
-                'all_options': results
-            }
-        elif len(detected_options) > 1:
-            # Vise opcija detektovano - uzmi onu sa najvecim fill_ratio
-            best = max(detected_options, key=lambda x: x['fill_ratio'])
-            return {
-                'value': best['value'],
-                'label': best['label'],
-                'confidence': 0.6,  # Nizi confidence zbog visesmislenosti
-                'warning': 'Vise opcija detektovano',
-                'method': 'fill_ratio',
-                'all_options': results
-            }
-        else:
-            # Nijedna opcija nije detektovana - vrati onu sa najvecim fill_ratio
-            if results:
-                best = max(results, key=lambda x: x['fill_ratio'])
-                return {
-                    'value': best['value'],
-                    'label': best['label'],
-                    'confidence': best['fill_ratio'],
-                    'warning': 'Nijedna opcija nije jasno detektovana',
-                    'method': 'fill_ratio',
-                    'all_options': results
-                }
+        other_densities = [r['density'] for r in results if r != best]
+        avg_other = sum(other_densities) / len(other_densities) if other_densities else 0
+
+        if max_density < 0.02:
             return {
                 'value': None,
-                'label': None,
                 'confidence': 0.0,
-                'warning': 'Nije moguce analizirati opcije',
-                'method': 'fill_ratio',
-                'all_options': []
+                'warning': 'Nijedna opcija nije označena',
+                'all_options': results
             }
 
-    def detect_circled_option(self,
-                              image: np.ndarray,
-                              options: List[Dict]) -> Dict:
-        """
-        Detektuje tekst koji je zaokruzen olovkom.
-        Koristi Hough Circle Transform i detekciju kontura elipsi.
-        """
-        gray = self._to_grayscale(image)
-        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-        edges = cv2.Canny(blurred, 50, 150)
+        confidence = 0.0
+        if avg_other > 0:
+            ratio = max_density / avg_other
+            confidence = min((ratio - 1.0) * 0.5, 1.0)
+        else:
+            confidence = 0.7
 
-        # Pronadji konture
-        contours, _ = cv2.findContours(
-            edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-        )
+        return {
+            'value': best['value'],
+            'label': best['label'],
+            'confidence': confidence,
+            'method': 'ink_density',
+            'all_options': results
+        }
 
-        # Pokusaj pronaci krugove/elipse
-        circles = []
-        for contour in contours:
-            if len(contour) >= 5:
-                try:
-                    ellipse = cv2.fitEllipse(contour)
-                    (cx, cy), (ma, MA), angle = ellipse
+    def _prepare_options(self, options: List[Dict], img_h: int, img_w: int) -> List[Dict]:
+        """Pripremi opcije - dodaj koordinate ako ih nema."""
+        prepared = []
 
-                    # Proveri da li lici na krug (odnos osa blizu 1)
-                    if ma > 0 and MA > 0:
-                        ratio = max(ma, MA) / min(ma, MA)
-                        if ratio < 2.5:  # Dopusti blago elipticne oblike
-                            circles.append({
-                                'center': (int(cx), int(cy)),
-                                'axes': (int(ma / 2), int(MA / 2)),
-                                'area': np.pi * ma * MA / 4,
-                                'contour': contour
-                            })
-                except cv2.error:
-                    continue
+        # Ako opcije nemaju koordinate, rasporedi ih vertikalno
+        if options and 'y' not in options[0] and 'relative_y' not in options[0]:
+            row_height = img_h // len(options) if len(options) > 0 else img_h
+            for i, opt in enumerate(options):
+                new_opt = opt.copy()
+                new_opt['relative_y'] = i * row_height
+                new_opt['height'] = row_height
+                new_opt['width'] = img_w
+                prepared.append(new_opt)
+        else:
+            prepared = [opt.copy() for opt in options]
 
-        # Hough Circle Transform kao alternativa
-        circles_hough = cv2.HoughCircles(
-            blurred,
-            cv2.HOUGH_GRADIENT,
-            dp=1,
-            minDist=30,
-            param1=50,
-            param2=30,
-            minRadius=10,
-            maxRadius=50
-        )
-
-        if circles_hough is not None:
-            for circle in circles_hough[0]:
-                x, y, r = circle
-                circles.append({
-                    'center': (int(x), int(y)),
-                    'axes': (int(r), int(r)),
-                    'area': np.pi * r * r,
-                    'contour': None
-                })
-
-        # Proveri koja opcija ima krug oko sebe
-        h, w = image.shape[:2]
-        for option in options:
-            if 'x' in option and 'y' in option:
-                opt_center = (
-                    option['x'] + option.get('width', 40) // 2,
-                    option['y'] + option.get('height', 30) // 2
-                )
-            else:
-                # Proceni centar opcije
-                opt_center = (w // 2, option.get('relative_y', 0) + 15)
-
-            for circle in circles:
-                dist = np.sqrt(
-                    (circle['center'][0] - opt_center[0]) ** 2 +
-                    (circle['center'][1] - opt_center[1]) ** 2
-                )
-
-                # Ako je centar kruga blizu centra opcije
-                threshold = max(option.get('width', 50), option.get('height', 30))
-                if dist < threshold:
-                    return {
-                        'value': option.get('value', option['label']),
-                        'label': option['label'],
-                        'confidence': 0.85,
-                        'method': 'circle_detection'
-                    }
-
-        # Fallback na fill_ratio metod
-        logger.debug("Circle detection nije pronasao krugove, koristim fill_ratio")
-        return self.detect_marked_option(image, options, method="fill_ratio")
+        return prepared
 
     def detect_checkbox(self,
                         image: np.ndarray,
                         checkbox_coords: Dict = None) -> Tuple[bool, float]:
         """
-        Detektuje da li je checkbox oznacen (X, check mark, popunjen).
-
-        Args:
-            image: Slika checkbox-a
-            checkbox_coords: Opcione koordinate {x, y, width, height}
-
-        Returns:
-            (is_checked, confidence)
+        Detektuje da li je checkbox označen.
         """
         gray = self._to_grayscale(image)
 
@@ -260,36 +335,10 @@ class OMRProcessor:
             cv2.THRESH_BINARY_INV, 11, 2
         )
 
-        # Pronadji konture unutar checkbox-a
-        contours, _ = cv2.findContours(
-            binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-        )
+        fill_ratio = cv2.countNonZero(binary) / binary.size if binary.size > 0 else 0
 
-        # Proveri da li ima znacajnu oznaku unutra
-        has_mark = False
-        total_mark_area = 0
-
-        for contour in contours:
-            area = cv2.contourArea(contour)
-            if area > self.min_contour_area:
-                total_mark_area += area
-                x, y, w, h = cv2.boundingRect(contour)
-                aspect_ratio = w / float(h) if h > 0 else 0
-
-                # X ili check mark ima razuman aspect ratio
-                if 0.3 < aspect_ratio < 3.0:
-                    has_mark = True
-
-        # Izracunaj fill ratio
-        fill_ratio = self._calculate_fill_ratio(binary)
-
-        # Kombinuj informacije
-        is_checked = has_mark or fill_ratio >= self.fill_threshold
-
-        if is_checked:
-            confidence = min(fill_ratio / self.fill_threshold, 1.0) * 0.7 + 0.3
-        else:
-            confidence = 1.0 - fill_ratio
+        is_checked = fill_ratio >= self.fill_threshold
+        confidence = min(fill_ratio / self.fill_threshold, 1.0) if is_checked else 1.0 - fill_ratio
 
         return is_checked, float(confidence)
 
@@ -297,36 +346,31 @@ class OMRProcessor:
                             image: np.ndarray,
                             options: List[Dict]) -> Dict:
         """
-        Detektuje vise oznacenih opcija (za pitanja sa visestrukim izborom).
-
-        Args:
-            image: Slika polja
-            options: Lista opcija
-
-        Returns:
-            Dict sa listom detektovanih opcija
+        Detektuje više označenih opcija (za pitanja sa višestrukim izborom).
+        Svaka opcija se proverava pojedinačno.
         """
         gray = self._to_grayscale(image)
+        h, w = gray.shape[:2]
+
+        options = self._prepare_options(options, h, w)
+
         binary = cv2.adaptiveThreshold(
             gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-            cv2.THRESH_BINARY_INV, 11, 2
+            cv2.THRESH_BINARY_INV, 15, 5
         )
 
-        h, w = binary.shape[:2]
         detected_values = []
         results = []
 
+        # Izračunaj prosečnu gustinu za određivanje praga
+        total_density = cv2.countNonZero(binary) / binary.size if binary.size > 0 else 0
+        dynamic_threshold = max(total_density * 1.5, 0.03)  # Minimalno 3%
+
         for option in options:
-            if 'x' in option and 'y' in option:
-                x = option.get('x', 0)
-                y = option.get('y', 0)
-                opt_w = option.get('width', 50)
-                opt_h = option.get('height', 30)
-            else:
-                x = 0
-                y = option.get('relative_y', 0)
-                opt_w = w
-                opt_h = 25
+            x = option.get('x', 0)
+            y = option.get('relative_y', option.get('y', 0))
+            opt_w = option.get('width', w)
+            opt_h = option.get('height', 30)
 
             x = max(0, min(x, w))
             y = max(0, min(y, h))
@@ -337,64 +381,112 @@ class OMRProcessor:
                 continue
 
             roi = binary[y:y2, x:x2]
-            if roi.size == 0:
-                continue
 
-            fill_ratio = self._calculate_fill_ratio(roi)
-            is_detected = fill_ratio >= self.fill_threshold
+            # Analiziraj "prsten" oko centra kao u detect_circled_number
+            roi_h, roi_w = roi.shape[:2]
+            center_x, center_y = roi_w // 2, roi_h // 2
+
+            inner_radius = min(roi_w, roi_h) // 4
+            outer_radius = min(roi_w, roi_h) // 2
+
+            mask_outer = np.zeros_like(roi)
+            mask_inner = np.zeros_like(roi)
+
+            cv2.circle(mask_outer, (center_x, center_y), outer_radius, 255, -1)
+            cv2.circle(mask_inner, (center_x, center_y), inner_radius, 255, -1)
+
+            mask_ring = cv2.subtract(mask_outer, mask_inner)
+
+            ring_ink = cv2.countNonZero(cv2.bitwise_and(roi, mask_ring))
+            ring_area = cv2.countNonZero(mask_ring)
+            ring_density = ring_ink / ring_area if ring_area > 0 else 0
+
+            # Da li je zaokruženo?
+            is_detected = ring_density > dynamic_threshold
 
             results.append({
                 'label': option['label'],
                 'value': option.get('value', option['label']),
-                'fill_ratio': fill_ratio,
+                'ring_density': ring_density,
                 'detected': is_detected
             })
 
             if is_detected:
                 detected_values.append(option.get('value', option['label']))
 
+            logger.debug(f"Multi-select {option['label']}: ring_density={ring_density:.4f}, "
+                        f"threshold={dynamic_threshold:.4f}, detected={is_detected}")
+
         return {
             'values': detected_values,
             'count': len(detected_values),
             'confidence': 0.8 if detected_values else 0.0,
-            'method': 'multi_select',
+            'method': 'multi_select_ring',
             'all_options': results
         }
 
-    def analyze_number_selection(self,
-                                 image: np.ndarray,
-                                 number_range: Tuple[int, int] = (1, 9)) -> Dict:
+    def detect_circled_option_hough(self, image: np.ndarray, options: List[Dict]) -> Dict:
         """
-        Analizira selekciju broja (npr. 1-9 za vrstu studija).
-        Koristi kombinaciju detekcije kruga i fill ratio.
-
-        Args:
-            image: Slika sa brojevima
-            number_range: Opseg brojeva (min, max)
-
-        Returns:
-            Dict sa detektovanim brojem
+        Alternativna metoda: koristi Hough Circle Transform.
+        Bolji za jasno nacrtane krugove.
         """
-        min_num, max_num = number_range
-        options = []
+        gray = self._to_grayscale(image)
+        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
 
-        # Generisi opcije za svaki broj
-        h, w = image.shape[:2] if len(image.shape) == 2 else image.shape[:2]
-        num_options = max_num - min_num + 1
-        row_height = h // num_options if num_options > 0 else h
+        # Pokušaj pronaći krugove
+        circles = cv2.HoughCircles(
+            blurred,
+            cv2.HOUGH_GRADIENT,
+            dp=1.2,
+            minDist=20,
+            param1=50,
+            param2=25,
+            minRadius=8,
+            maxRadius=40
+        )
 
-        for i, num in enumerate(range(min_num, max_num + 1)):
-            options.append({
-                'label': str(num),
-                'value': str(num),
-                'relative_y': i * row_height,
-                'height': row_height
+        if circles is None:
+            logger.debug("Hough Circle Transform nije pronašao krugove")
+            return self._detect_circled_number(gray, options)
+
+        h, w = gray.shape[:2]
+        detected_circles = []
+
+        for circle in circles[0]:
+            cx, cy, r = circle
+            detected_circles.append({
+                'center': (int(cx), int(cy)),
+                'radius': int(r)
             })
 
-        return self.detect_marked_option(image, options)
+        # Proveri koja opcija ima krug
+        for option in options:
+            opt_x = option.get('x', 0)
+            opt_y = option.get('relative_y', option.get('y', 0))
+            opt_w = option.get('width', 50)
+            opt_h = option.get('height', 30)
+
+            opt_center = (opt_x + opt_w // 2, opt_y + opt_h // 2)
+
+            for circle in detected_circles:
+                dist = np.sqrt(
+                    (circle['center'][0] - opt_center[0]) ** 2 +
+                    (circle['center'][1] - opt_center[1]) ** 2
+                )
+
+                if dist < max(opt_w, opt_h):
+                    return {
+                        'value': option.get('value', option['label']),
+                        'label': option['label'],
+                        'confidence': 0.9,
+                        'method': 'hough_circle'
+                    }
+
+        # Fallback
+        return self._detect_circled_number(gray, options)
 
     def _to_grayscale(self, img: np.ndarray) -> np.ndarray:
-        """Konvertuje u grayscale ako nije vec."""
+        """Konvertuje u grayscale ako nije već."""
         if len(img.shape) == 3:
             return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         return img
@@ -414,42 +506,47 @@ class OMRProcessor:
 
         return image[y:y2, x:x2]
 
-    def _calculate_fill_ratio(self, binary_image: np.ndarray) -> float:
-        """Racuna procenat belih piksela u binarnoj slici."""
-        if binary_image.size == 0:
-            return 0.0
-
-        white_pixels = cv2.countNonZero(binary_image)
-        total_pixels = binary_image.shape[0] * binary_image.shape[1]
-
-        return white_pixels / total_pixels if total_pixels > 0 else 0.0
-
 
 def test_omr_processor():
     """Test funkcija za OMR processor."""
-    print("Testiram OMR Processor...")
+    print("Testiram poboljšani OMR Processor za zaokružene brojeve...")
 
-    processor = OMRProcessor(fill_threshold=0.25)
+    processor = OMRProcessor(fill_threshold=0.15)
 
-    # Kreiraj test sliku
-    test_img = np.ones((200, 100), dtype=np.uint8) * 255
+    # Kreiraj test sliku - simuliraj zaokruženi broj
+    test_img = np.ones((150, 400), dtype=np.uint8) * 255
 
-    # Simuliraj zaokruzenu opciju na poziciji y=50
-    cv2.circle(test_img, (50, 60), 20, (0, 0, 0), 2)
-    # Dodaj malo crne unutar kruga
-    cv2.circle(test_img, (50, 60), 15, (100, 100, 100), -1)
+    # Simuliraj 3 opcije, druga je zaokružena
+    # Opcija 1 - nezaokružena
+    cv2.putText(test_img, "1", (50, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 2)
+
+    # Opcija 2 - ZAOKRUŽENA
+    cv2.putText(test_img, "2", (50, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 2)
+    cv2.ellipse(test_img, (55, 70), (25, 18), 0, 0, 360, (0, 0, 0), 2)  # Ručno nacrtan krug
+
+    # Opcija 3 - nezaokružena
+    cv2.putText(test_img, "3", (50, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 2)
 
     options = [
-        {'label': '1', 'value': 'Option1', 'relative_y': 10, 'height': 40},
-        {'label': '2', 'value': 'Option2', 'relative_y': 50, 'height': 40},
-        {'label': '3', 'value': 'Option3', 'relative_y': 90, 'height': 40},
+        {'label': '1', 'value': 'Option1', 'relative_y': 0, 'height': 50, 'width': 100},
+        {'label': '2', 'value': 'Option2', 'relative_y': 50, 'height': 50, 'width': 100},
+        {'label': '3', 'value': 'Option3', 'relative_y': 100, 'height': 50, 'width': 100},
     ]
 
     result = processor.detect_marked_option(test_img, options)
-    print(f"Detektovana opcija: {result['value']} (confidence: {result['confidence']:.2f})")
-    print(f"Sve opcije: {result['all_options']}")
+    print(f"Detektovana opcija: {result.get('value')} (confidence: {result.get('confidence', 0):.2f})")
+    print(f"Metoda: {result.get('method', 'N/A')}")
 
-    print("Test zavrsen!")
+    if 'all_options' in result:
+        print("\nSve opcije:")
+        for opt in result['all_options']:
+            print(f"  {opt['label']}: score={opt.get('score', opt.get('density', 0)):.4f}")
+
+    # Očekujemo da detektuje opciju 2
+    expected = 'Option2'
+    actual = result.get('value')
+    print(f"\nTest {'PASSED ✓' if actual == expected else 'FAILED ✗'}")
+    print(f"  Očekivano: {expected}, Dobijeno: {actual}")
 
 
 if __name__ == "__main__":

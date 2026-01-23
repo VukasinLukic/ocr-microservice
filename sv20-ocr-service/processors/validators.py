@@ -43,30 +43,34 @@ class FieldValidator:
         Returns:
             (is_valid, cleaned_value, error_message)
         """
-        # Ocisti vrednost - zadrzi samo cifre
-        cleaned = re.sub(r'\D', '', value)
+        # JMBG Validation with Substring Search
+        # Often OCR reads extra digits (like vertical lines or box edges).
+        # We search specifically for a 13-digit sequence that passes Modulo 11.
+        
+        # 1. Clean input
+        digits = re.sub(r'\D', '', value)
+        
+        # 2. If exactly 13, validate directly
+        if len(digits) == 13:
+            if cls._validate_jmbg_checksum(digits):
+                return True, digits, None
+            else:
+                 return False, digits, "Neispravna kontrolna cifra JMBG-a"
 
-        if len(cleaned) != cls.JMBG_LENGTH:
-            return False, cleaned, f"JMBG mora imati {cls.JMBG_LENGTH} cifara, ima {len(cleaned)}"
+        # 3. If longer than 13, scan for valid substrings
+        if len(digits) > 13:
+            # Sliding window of size 13
+            for i in range(len(digits) - 12):
+                candidate = digits[i : i+13]
+                if cls._validate_jmbg_checksum(candidate):
+                    # Found a valid JMBG!
+                    return True, candidate, None
+            
+            # If no valid substring found
+            return False, digits, f"Nije pronadjen validan JMBG u nizu od {len(digits)} cifara"
 
-        if not cleaned.isdigit():
-            return False, cleaned, "JMBG mora sadrzati samo cifre"
-
-        # Osnovna validacija datuma
-        day = int(cleaned[0:2])
-        month = int(cleaned[2:4])
-
-        if day < 1 or day > 31:
-            return False, cleaned, f"Nevalidan dan rodjenja: {day}"
-
-        if month < 1 or month > 12:
-            return False, cleaned, f"Nevalidan mesec rodjenja: {month}"
-
-        # Validacija kontrolne cifre
-        if cls._validate_jmbg_checksum(cleaned):
-            return True, cleaned, None
-        else:
-            return False, cleaned, "Neispravna kontrolna cifra JMBG-a"
+        # 4. If shorter than 13
+        return False, digits, f"JMBG mora imati 13 cifara, ima {len(digits)}"
 
     @staticmethod
     def _validate_jmbg_checksum(jmbg: str) -> bool:
@@ -230,29 +234,40 @@ class FieldValidator:
         if max_year is None:
             max_year = datetime.now().year + 1
 
+        # Smart Year Search
+        # 1. Clean input
         cleaned = re.sub(r'\D', '', value)
-
-        if not cleaned:
-            return False, "", "Godina nije pronadjena"
-
-        # Ako ima samo 2 cifre, dopuni na 4
+        
+        # 2. Search for 4-digit year pattern (19xx or 20xx)
+        match = re.search(r'(19|20)\d{2}', cleaned)
+        if match:
+            year_candidate = match.group(0)
+            year = int(year_candidate)
+            if min_year <= year <= max_year:
+                 return True, year_candidate, None
+        
+        # 3. Fallback logic: check exact match if length is 4
+        if len(cleaned) == 4:
+            try:
+                year = int(cleaned)
+                if min_year <= year <= max_year:
+                    return True, cleaned, None
+                else:
+                    return False, cleaned, f"Godina mora biti izmedju {min_year} i {max_year}"
+            except ValueError:
+                pass
+                
+        # 4. Fallback for 2-digit years
         if len(cleaned) == 2:
-            year = int(cleaned)
-            if year < 50:
-                cleaned = f"20{cleaned}"
-            else:
-                cleaned = f"19{cleaned}"
+            try:
+                year = int(cleaned)
+                full_year = 2000 + year if year < 50 else 1900 + year
+                if min_year <= full_year <= max_year:
+                    return True, str(full_year), None
+            except ValueError:
+                pass
 
-        if len(cleaned) != 4:
-            return False, cleaned, "Godina mora imati 4 cifre"
-
-        try:
-            year = int(cleaned)
-            if year < min_year or year > max_year:
-                return False, cleaned, f"Godina mora biti izmedju {min_year} i {max_year}"
-            return True, cleaned, None
-        except ValueError:
-            return False, cleaned, "Nevalidna godina"
+        return False, cleaned, "Nevalidna godina"
 
     @classmethod
     def validate_text(cls, value: str,
