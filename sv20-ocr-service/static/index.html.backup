@@ -295,15 +295,6 @@
                 </svg>
                 Save
             </button>
-
-            <button id="circleModeBtn" class="btn btn-primary" onclick="toggleCircleMode()" style="display: none;">
-                🎯 Edit Circles
-            </button>
-        </div>
-
-        <div id="circleInfo" style="display: none; padding: 12px; background: rgba(34, 197, 94, 0.1); border: 1px solid #22c55e; border-radius: 8px; margin-bottom: 16px;">
-            <div style="font-size: 11px; color: #94a3b8; margin-bottom: 4px;">CIRCLE MODE - Use ↑↓ arrows or click</div>
-            <div style="font-weight: 600; color: #22c55e; font-size: 13px;" id="circleInfoText">-</div>
         </div>
 
         <div class="filters" style="display: flex; gap: 5px; margin-bottom: 10px;">
@@ -337,13 +328,6 @@
         let activeFieldId = null;
         let isDragging = false;
         let isResizing = false;
-
-        // Circle Editing Mode (for OMR fields)
-        let editMode = 'field'; // 'field' or 'circles'
-        let activeCircles = []; // Array of circle objects for current OMR field
-        let activeCircleIndex = null; // Currently selected circle
-        let isDraggingCircle = false;
-        let isResizingCircle = false; // NEW: Track circle resize state
         let dragStart = { x: 0, y: 0 };
         let activeRect = null;
         let resizeHandle = null;
@@ -543,40 +527,6 @@
                 ctx.font = "12px Inter";
                 ctx.fillText(field.id, x + 2, y - 4);
             });
-
-            // Draw Circles (for OMR fields in circle mode)
-            if (editMode === 'circles' && activeCircles.length > 0) {
-                activeCircles.forEach((circle, idx) => {
-                    const isActiveCircle = idx === activeCircleIndex;
-                    const { x, y, width, height } = circle;
-
-                    // Circle box
-                    ctx.beginPath();
-                    ctx.rect(x, y, width, height);
-                    ctx.fillStyle = isActiveCircle ? "rgba(34, 197, 94, 0.3)" : "rgba(251, 191, 36, 0.2)";
-                    ctx.fill();
-                    ctx.lineWidth = isActiveCircle ? 3 : 2;
-                    ctx.strokeStyle = isActiveCircle ? "#22c55e" : "#fbbf24";
-                    ctx.stroke();
-
-                    // Circle label
-                    ctx.fillStyle = isActiveCircle ? "#22c55e" : "#fbbf24";
-                    ctx.font = "bold 14px Inter";
-                    ctx.textAlign = "left";
-                    ctx.fillText(circle.label, x + 4, y + 16);
-
-                    // Circle value (smaller text)
-                    ctx.font = "10px Inter";
-                    ctx.fillStyle = "#fff";
-                    const valueTrunc = circle.value.length > 15 ? circle.value.substring(0, 15) + "..." : circle.value;
-                    ctx.fillText(valueTrunc, x + 4, y + height - 4);
-
-                    // Handles for active circle
-                    if (isActiveCircle) {
-                        drawHandles(x, y, width, height);
-                    }
-                });
-            }
         }
 
         function drawHandles(x, y, w, h) {
@@ -592,40 +542,8 @@
         canvas.addEventListener('mousedown', (e) => {
             const pos = getMousePos(e);
 
-            // CIRCLE MODE: Check if clicking on circles
-            if (editMode === 'circles' && activeCircles.length > 0) {
-                // First check if clicking on active circle's resize handle
-                if (activeCircleIndex !== null) {
-                    const activeCircle = activeCircles[activeCircleIndex];
-                    const handle = getResizeHandle(pos.x, pos.y, activeCircle);
-                    if (handle) {
-                        isResizingCircle = true;
-                        resizeHandle = handle;
-                        dragStart = { x: pos.x, y: pos.y };
-                        activeRect = { ...activeCircle };
-                        console.log(`[CIRCLE] Start resizing circle ${activeCircle.label} from handle ${handle}`);
-                        return;
-                    }
-                }
-
-                // Then check if clicking on any circle (to select and drag)
-                for (let idx = activeCircles.length - 1; idx >= 0; idx--) {
-                    const circle = activeCircles[idx];
-                    if (isPointInRect(pos.x, pos.y, circle)) {
-                        activeCircleIndex = idx;
-                        isDraggingCircle = true;
-                        dragStart = { x: pos.x, y: pos.y };
-                        activeRect = { ...circle };
-                        updateCircleInfo();
-                        draw();
-                        console.log(`[CIRCLE] Start dragging circle ${circle.label}`);
-                        return;
-                    }
-                }
-            }
-
-            // FIELD MODE: First check if clicking on an active field's resize handle
-            if (editMode === 'field' && activeFieldId) {
+            // First check if clicking on an active field's resize handle
+            if (activeFieldId) {
                 const activeField = template.fields.find(f => f.id === activeFieldId);
                 if (activeField && activeField._visible) {
                     const handle = getResizeHandle(pos.x, pos.y, activeField.coordinates);
@@ -662,60 +580,8 @@
         canvas.addEventListener('mousemove', (e) => {
             const pos = getMousePos(e);
 
-            // CIRCLE RESIZING
-            if (isResizingCircle && activeCircleIndex !== null) {
-                const circle = activeCircles[activeCircleIndex];
-                const dx = pos.x - dragStart.x;
-                const dy = pos.y - dragStart.y;
-
-                if (resizeHandle === 'nw') {
-                    circle.x = Math.round(activeRect.x + dx);
-                    circle.y = Math.round(activeRect.y + dy);
-                    circle.width = Math.max(20, activeRect.width - dx);
-                    circle.height = Math.max(20, activeRect.height - dy);
-                } else if (resizeHandle === 'ne') {
-                    circle.y = Math.round(activeRect.y + dy);
-                    circle.width = Math.max(20, activeRect.width + dx);
-                    circle.height = Math.max(20, activeRect.height - dy);
-                } else if (resizeHandle === 'se') {
-                    circle.width = Math.max(20, activeRect.width + dx);
-                    circle.height = Math.max(20, activeRect.height + dy);
-                } else if (resizeHandle === 'sw') {
-                    circle.x = Math.round(activeRect.x + dx);
-                    circle.width = Math.max(20, activeRect.width - dx);
-                    circle.height = Math.max(20, activeRect.height + dy);
-                }
-                draw();
-                return;
-            }
-
-            // CIRCLE DRAGGING
-            if (isDraggingCircle && activeCircleIndex !== null) {
-                const circle = activeCircles[activeCircleIndex];
-                const dx = pos.x - dragStart.x;
-                const dy = pos.y - dragStart.y;
-
-                circle.x = Math.round(activeRect.x + dx);
-                circle.y = Math.round(activeRect.y + dy);
-                draw();
-                return;
-            }
-
-            // Cursor for CIRCLE MODE
-            if (editMode === 'circles' && activeCircleIndex !== null && !isDraggingCircle && !isResizingCircle) {
-                const circle = activeCircles[activeCircleIndex];
-                const handle = getResizeHandle(pos.x, pos.y, circle);
-                if (handle) {
-                    canvas.style.cursor = handle + '-resize';
-                    return;
-                } else if (isPointInRect(pos.x, pos.y, circle)) {
-                    canvas.style.cursor = 'move';
-                    return;
-                }
-            }
-
-            // Cursor for FIELD MODE
-            if (editMode === 'field' && activeFieldId && !isDragging) {
+            // Cursor
+            if (activeFieldId && !isDragging) {
                 const field = template.fields.find(f => f.id === activeFieldId);
                 if (field && field._visible) {
                     const handle = getResizeHandle(pos.x, pos.y, field.coordinates);
@@ -742,76 +608,15 @@
                 const dx = pos.x - dragStart.x;
                 const dy = pos.y - dragStart.y;
 
-                if (resizeHandle === 'nw') {
-                    field.coordinates.x = Math.round(activeRect.x + dx);
-                    field.coordinates.y = Math.round(activeRect.y + dy);
-                    field.coordinates.width = Math.max(10, activeRect.width - dx);
-                    field.coordinates.height = Math.max(10, activeRect.height - dy);
-                } else if (resizeHandle === 'ne') {
-                    field.coordinates.y = Math.round(activeRect.y + dy);
+                if (resizeHandle === 'se') {
                     field.coordinates.width = Math.max(10, activeRect.width + dx);
-                    field.coordinates.height = Math.max(10, activeRect.height - dy);
-                } else if (resizeHandle === 'se') {
-                    field.coordinates.width = Math.max(10, activeRect.width + dx);
-                    field.coordinates.height = Math.max(10, activeRect.height + dy);
-                } else if (resizeHandle === 'sw') {
-                    field.coordinates.x = Math.round(activeRect.x + dx);
-                    field.coordinates.width = Math.max(10, activeRect.width - dx);
                     field.coordinates.height = Math.max(10, activeRect.height + dy);
                 }
                 draw();
-            }
-        });
-
-        // Keyboard Navigation for Circles
-        window.addEventListener('keydown', (e) => {
-            if (editMode === 'circles' && activeCircles.length > 0) {
-                if (e.key === 'ArrowDown') {
-                    e.preventDefault();
-                    activeCircleIndex = (activeCircleIndex + 1) % activeCircles.length;
-                    updateCircleInfo();
-                    draw();
-                } else if (e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    activeCircleIndex = (activeCircleIndex - 1 + activeCircles.length) % activeCircles.length;
-                    updateCircleInfo();
-                    draw();
-                }
             }
         });
 
         window.addEventListener('mouseup', () => {
-            // Circle resizing end
-            if (isResizingCircle) {
-                isResizingCircle = false;
-                if (activeCircleIndex !== null) {
-                    const circle = activeCircles[activeCircleIndex];
-                    circle.x = Math.round(circle.x);
-                    circle.y = Math.round(circle.y);
-                    circle.width = Math.round(circle.width);
-                    circle.height = Math.round(circle.height);
-                    console.log(`[CIRCLE] Resized circle ${circle.label} to (${circle.x}, ${circle.y}, ${circle.width}x${circle.height})`);
-                    updateCircleInfo();
-                }
-                draw();
-                return;
-            }
-
-            // Circle dragging end
-            if (isDraggingCircle) {
-                isDraggingCircle = false;
-                if (activeCircleIndex !== null) {
-                    const circle = activeCircles[activeCircleIndex];
-                    circle.x = Math.round(circle.x);
-                    circle.y = Math.round(circle.y);
-                    console.log(`[CIRCLE] Moved circle ${circle.label} to (${circle.x}, ${circle.y})`);
-                    updateCircleInfo();
-                }
-                draw();
-                return;
-            }
-
-            // Field dragging/resizing end
             if (isDragging || isResizing) {
                 isDragging = false;
                 isResizing = false;
@@ -844,29 +649,10 @@
 
         function getResizeHandle(x, y, rect) {
             const s = HANDLE_SIZE + 4;
-
-            // Check all four corners
-            // North-West (top-left)
-            if (x >= rect.x - s && x <= rect.x + s &&
-                y >= rect.y - s && y <= rect.y + s) {
-                return 'nw';
-            }
-            // North-East (top-right)
-            if (x >= rect.x + rect.width - s && x <= rect.x + rect.width + s &&
-                y >= rect.y - s && y <= rect.y + s) {
-                return 'ne';
-            }
-            // South-East (bottom-right)
             if (x >= rect.x + rect.width - s && x <= rect.x + rect.width + s &&
                 y >= rect.y + rect.height - s && y <= rect.y + rect.height + s) {
                 return 'se';
             }
-            // South-West (bottom-left)
-            if (x >= rect.x - s && x <= rect.x + s &&
-                y >= rect.y + rect.height - s && y <= rect.y + rect.height + s) {
-                return 'sw';
-            }
-
             return null;
         }
 
@@ -912,11 +698,6 @@
         }
 
         function setActiveField(id) {
-            // VAŽNO: Sačuvaj koordinate trenutnog polja PRE nego što pređeš na novo!
-            if (activeFieldId && activeFieldId !== id) {
-                saveCurrentCircles();
-            }
-
             activeFieldId = id;
 
             // Ensure visible when finding
@@ -925,135 +706,9 @@
                 field._visible = true;
             }
 
-            // Initialize circles for OMR fields
-            if (field && (field.type === 'OMR_SINGLE' || field.type === 'OMR_MULTI')) {
-                initCirclesForField(field);
-            } else {
-                // Not OMR - exit circle mode
-                editMode = 'field';
-                activeCircles = [];
-                activeCircleIndex = null;
-            }
-
             renderFieldList();
-            updateModeUI();
             draw();
         }
-
-        function saveCurrentCircles() {
-            // Sačuvaj koordinate krugova trenutno aktivnog polja
-            if (!activeFieldId || activeCircles.length === 0) return;
-
-            const field = template.fields.find(f => f.id === activeFieldId);
-            if (!field || !field.omr_options) return;
-
-            console.log('[AUTO-SAVE] Saving circle coordinates for field:', field.name);
-
-            field.omr_options = field.omr_options.map((opt, idx) => {
-                const circle = activeCircles[idx];
-                if (circle) {
-                    return {
-                        ...opt,
-                        x: circle.x,
-                        y: circle.y,
-                        width: circle.width,
-                        height: circle.height
-                    };
-                }
-                return opt;
-            });
-
-            console.log('[AUTO-SAVE] ✓ Saved', activeCircles.length, 'circles');
-        }
-
-        function initCirclesForField(field) {
-            console.log('[CIRCLE MODE] Initializing circles for field:', field.name);
-            activeCircles = [];
-
-            const omr_options = field.omr_options || [];
-            const fieldCoords = field.coordinates;
-
-            omr_options.forEach((opt, idx) => {
-                let circleX, circleY, circleW, circleH;
-
-                // If option already has absolute coordinates, use them
-                if (opt.x !== undefined && opt.y !== undefined) {
-                    circleX = opt.x;
-                    circleY = opt.y;
-                    circleW = opt.width || 60;
-                    circleH = opt.height || 40;
-                } else {
-                    // Auto-position vertically within field ROI
-                    const numOptions = omr_options.length;
-                    const optHeight = fieldCoords.height / numOptions;
-
-                    circleX = fieldCoords.x + 5;
-                    circleY = fieldCoords.y + (idx * optHeight) + 2;
-                    circleW = Math.min(fieldCoords.width - 10, 150);
-                    circleH = optHeight - 4;
-                }
-
-                activeCircles.push({
-                    label: opt.label || String(idx + 1),
-                    value: opt.value || `Option ${idx + 1}`,
-                    x: circleX,
-                    y: circleY,
-                    width: circleW,
-                    height: circleH
-                });
-            });
-
-            console.log(`[CIRCLE MODE] Initialized ${activeCircles.length} circles`);
-        }
-
-        function updateModeUI() {
-            const field = template.fields.find(f => f.id === activeFieldId);
-            const circleModeBtn = document.getElementById('circleModeBtn');
-            const circleInfo = document.getElementById('circleInfo');
-
-            if (field && (field.type === 'OMR_SINGLE' || field.type === 'OMR_MULTI')) {
-                // Show circle mode button
-                circleModeBtn.style.display = 'block';
-                circleModeBtn.textContent = editMode === 'circles' ? '← Field Mode' : '🎯 Edit Circles';
-                circleModeBtn.className = editMode === 'circles' ? 'btn btn-secondary' : 'btn btn-primary';
-
-                // Show/hide circle info panel
-                if (editMode === 'circles') {
-                    circleInfo.style.display = 'block';
-                    updateCircleInfo();
-                } else {
-                    circleInfo.style.display = 'none';
-                }
-            } else {
-                circleModeBtn.style.display = 'none';
-                circleInfo.style.display = 'none';
-            }
-        }
-
-        function updateCircleInfo() {
-            const circleInfoText = document.getElementById('circleInfoText');
-            if (activeCircleIndex !== null && activeCircles[activeCircleIndex]) {
-                const circle = activeCircles[activeCircleIndex];
-                circleInfoText.textContent = `Circle ${circle.label}: "${circle.value}" (${circle.x}, ${circle.y})`;
-            } else {
-                circleInfoText.textContent = 'No circle selected';
-            }
-        }
-
-        window.toggleCircleMode = function() {
-            if (editMode === 'field') {
-                editMode = 'circles';
-                activeCircleIndex = 0; // Select first circle
-            } else {
-                // Izlazimo iz Circle Mode - AUTO-SAVE!
-                saveCurrentCircles();
-                editMode = 'field';
-                activeCircleIndex = null;
-            }
-
-            updateModeUI();
-            draw();
-        };
 
         // Toggle individual field visibility
         window.toggleFieldVisibility = function(id, btnElement) {
@@ -1079,10 +734,6 @@
         // API
         async function saveTemplate() {
             if (!template) return;
-
-            // VAŽNO: AUTO-SAVE trenutnih krugova pre nego što sačuvamo template!
-            saveCurrentCircles();
-
             showLoader(true);
 
             // Clean up internal _visible props before saving

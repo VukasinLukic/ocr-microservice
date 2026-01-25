@@ -154,8 +154,8 @@
       "type": "OMR_SINGLE",
       "page": 1,
       "coordinates": {
-        "x": 92,
-        "y": 784,
+        "x": 93,
+        "y": 785,
         "width": 411,
         "height": 212
       },
@@ -164,47 +164,83 @@
         {
           "label": "1",
           "value": "Osnovne akademske studije",
-          "relative_y": 20
+          "relative_y": 20,
+          "x": 469,
+          "y": 796,
+          "width": 31,
+          "height": 30
         },
         {
           "label": "2",
           "value": "Osnovne strukovne studije",
-          "relative_y": 35
+          "relative_y": 35,
+          "x": 472,
+          "y": 819,
+          "width": 25,
+          "height": 22
         },
         {
           "label": "3",
           "value": "Specijalisticke strukovne studije",
-          "relative_y": 50
+          "relative_y": 50,
+          "x": 474,
+          "y": 834,
+          "width": 22,
+          "height": 20
         },
         {
           "label": "4",
           "value": "Master akademske studije",
-          "relative_y": 70
+          "relative_y": 70,
+          "x": 471,
+          "y": 864,
+          "width": 27,
+          "height": 22
         },
         {
           "label": "5",
           "value": "Master strukovne studije",
-          "relative_y": 85
+          "relative_y": 85,
+          "x": 470,
+          "y": 881,
+          "width": 25,
+          "height": 20
         },
         {
           "label": "6",
           "value": "Specijalisticke akademske studije",
-          "relative_y": 100
+          "relative_y": 100,
+          "x": 469,
+          "y": 897,
+          "width": 27,
+          "height": 20
         },
         {
           "label": "7",
           "value": "Integrisane akademske studije",
-          "relative_y": 115
+          "relative_y": 115,
+          "x": 471,
+          "y": 915,
+          "width": 27,
+          "height": 20
         },
         {
           "label": "8",
           "value": "Doktorske akademske studije",
-          "relative_y": 135
+          "relative_y": 135,
+          "x": 468,
+          "y": 948,
+          "width": 30,
+          "height": 20
         },
         {
           "label": "9",
           "value": "Stari programi",
-          "relative_y": 150
+          "relative_y": 150,
+          "x": 470,
+          "y": 965,
+          "width": 26,
+          "height": 20
         }
       ]
     },
@@ -216,7 +252,7 @@
       "page": 1,
       "coordinates": {
         "x": 120,
-        "y": 1039,
+        "y": 1037,
         "width": 350,
         "height": 45
       },
@@ -278,7 +314,7 @@
       "page": 1,
       "coordinates": {
         "x": 79,
-        "y": 1333,
+        "y": 1324,
         "width": 427,
         "height": 68
       },
@@ -288,13 +324,19 @@
           "label": "1",
           "value": "Budzet",
           "relative_y": 0,
-          "height": 73
+          "height": 31,
+          "x": 469,
+          "y": 1326,
+          "width": 31
         },
         {
           "label": "2",
           "value": "Samofinansiranje",
           "relative_y": 73,
-          "height": 73
+          "height": 26,
+          "x": 470,
+          "y": 1349,
+          "width": 33
         }
       ]
     },
@@ -320,7 +362,7 @@
       "id": 13,
       "name": "srednja_skola_vrsta",
       "label": "Врста школе",
-      "type": "OMR_SINGLE",
+      "type": "TEXT",
       "page": 1,
       "coordinates": {
         "x": 547,
@@ -329,31 +371,8 @@
         "height": 32
       },
       "required": true,
-      "omr_options": [
-        {
-          "label": "1",
-          "value": "Gimnazija",
-          "relative_y": 0,
-          "height": 25
-        },
-        {
-          "label": "2",
-          "value": "Ekonomska",
-          "relative_y": 25,
-          "height": 25
-        },
-        {
-          "label": "3",
-          "value": "Saobracajna",
-          "relative_y": 50,
-          "height": 25
-        },
-        {
-          "label": "4",
-          "value": "Druga",
-          "relative_y": 75,
-          "height": 25
-        }
+      "preprocessing": [
+        "denoise"
       ]
     },
     {
@@ -414,14 +433,20 @@
           "value": "M",
           "text": "Мушки",
           "relative_y": 0,
-          "height": 69
+          "height": 27,
+          "x": 915,
+          "y": 719,
+          "width": 38
         },
         {
           "label": "2",
           "value": "Z",
           "text": "Женски",
           "relative_y": 69,
-          "height": 69
+          "height": 23,
+          "x": 918,
+          "y": 738,
+          "width": 34
         }
       ]
     },
@@ -561,7 +586,7 @@
       "type": "OMR_SINGLE",
       "page": 1,
       "coordinates": {
-        "x": 535,
+        "x": 533,
         "y": 1274,
         "width": 420,
         "height": 110
@@ -572,19 +597,28 @@
           "label": "1",
           "value": "Neozenjen/Neudata",
           "relative_y": 0,
-          "height": 113
+          "height": 30,
+          "x": 917,
+          "y": 1293,
+          "width": 33
         },
         {
           "label": "2",
           "value": "Ozenjen/Udata",
           "relative_y": 113,
-          "height": 113
+          "height": 25,
+          "x": 922,
+          "y": 1315,
+          "width": 25
         },
         {
           "label": "3",
           "value": "Razveden/Razvedena",
           "relative_y": 226,
-          "height": 113
+          "height": 25,
+          "x": 922,
+          "y": 1331,
+          "width": 26
         }
       ]
     },
@@ -622,27 +656,51 @@
       "omr_options": [
         {
           "label": "1",
-          "value": "Kod roditelja"
+          "value": "Kod roditelja",
+          "x": 463,
+          "y": 237,
+          "width": 37,
+          "height": 28
         },
         {
           "label": "2",
-          "value": "Iznajmljen stan"
+          "value": "Iznajmljen stan",
+          "x": 465,
+          "y": 262,
+          "width": 32,
+          "height": 20
         },
         {
           "label": "3",
-          "value": "Studentski dom"
+          "value": "Studentski dom",
+          "x": 464,
+          "y": 280,
+          "width": 38,
+          "height": 20
         },
         {
           "label": "4",
-          "value": "Sopstveni stan"
+          "value": "Sopstveni stan",
+          "x": 466,
+          "y": 297,
+          "width": 34,
+          "height": 20
         },
         {
           "label": "5",
-          "value": "Kod rodjaka"
+          "value": "Kod rodjaka",
+          "x": 465,
+          "y": 316,
+          "width": 38,
+          "height": 20
         },
         {
           "label": "6",
-          "value": "Drugo"
+          "value": "Drugo",
+          "x": 465,
+          "y": 332,
+          "width": 35,
+          "height": 21
         }
       ]
     },
@@ -662,31 +720,59 @@
       "omr_options": [
         {
           "label": "1",
-          "value": "Izdrzavanje od roditelja"
+          "value": "Izdrzavanje od roditelja",
+          "x": 464,
+          "y": 431,
+          "width": 37,
+          "height": 31
         },
         {
           "label": "2",
-          "value": "Licni prihodi"
+          "value": "Licni prihodi",
+          "x": 465,
+          "y": 465,
+          "width": 39,
+          "height": 29
         },
         {
           "label": "3",
-          "value": "Stipendija javne uprave"
+          "value": "Stipendija javne uprave",
+          "x": 465,
+          "y": 517,
+          "width": 36,
+          "height": 31
         },
         {
           "label": "4",
-          "value": "Kredit javne uprave"
+          "value": "Kredit javne uprave",
+          "x": 466,
+          "y": 567,
+          "width": 35,
+          "height": 27
         },
         {
           "label": "5",
-          "value": "Stipendije firmi i kompanija"
+          "value": "Stipendije firmi i kompanija",
+          "x": 467,
+          "y": 587,
+          "width": 33,
+          "height": 24
         },
         {
           "label": "6",
-          "value": "Komercijalni kredit"
+          "value": "Komercijalni kredit",
+          "x": 464,
+          "y": 607,
+          "width": 37,
+          "height": 21
         },
         {
           "label": "7",
-          "value": "Drugi izvori finansiranja"
+          "value": "Drugi izvori finansiranja",
+          "x": 467,
+          "y": 625,
+          "width": 35,
+          "height": 26
         }
       ]
     },
@@ -723,11 +809,19 @@
       "omr_options": [
         {
           "label": "1",
-          "value": "Da"
+          "value": "Da",
+          "x": 466,
+          "y": 811,
+          "width": 34,
+          "height": 24
         },
         {
           "label": "2",
-          "value": "Ne"
+          "value": "Ne",
+          "x": 462,
+          "y": 828,
+          "width": 39,
+          "height": 27
         }
       ]
     },
@@ -747,23 +841,43 @@
       "omr_options": [
         {
           "label": "1",
-          "value": "Ne"
+          "value": "Ne",
+          "x": 465,
+          "y": 925,
+          "width": 35,
+          "height": 36
         },
         {
           "label": "2",
-          "value": "Da, dete/decu"
+          "value": "Da, dete/decu",
+          "x": 462,
+          "y": 951,
+          "width": 39,
+          "height": 27
         },
         {
           "label": "3",
-          "value": "Da, suprug/supruga"
+          "value": "Da, suprug/supruga",
+          "x": 463,
+          "y": 971,
+          "width": 37,
+          "height": 21
         },
         {
           "label": "4",
-          "value": "Da, roditelje"
+          "value": "Da, roditelje",
+          "x": 463,
+          "y": 988,
+          "width": 37,
+          "height": 20
         },
         {
           "label": "5",
-          "value": "Da, druga lica"
+          "value": "Da, druga lica",
+          "x": 465,
+          "y": 1001,
+          "width": 34,
+          "height": 27
         }
       ]
     },
@@ -783,11 +897,19 @@
       "omr_options": [
         {
           "label": "1",
-          "value": "Da"
+          "value": "Da",
+          "x": 463,
+          "y": 1081,
+          "width": 39,
+          "height": 25
         },
         {
           "label": "2",
-          "value": "Ne"
+          "value": "Ne",
+          "x": 466,
+          "y": 1099,
+          "width": 34,
+          "height": 27
         }
       ]
     },
@@ -825,27 +947,51 @@
       "omr_options": [
         {
           "label": "1",
-          "value": "Osnovna skola ili manje"
+          "value": "Osnovna skola ili manje",
+          "x": 916,
+          "y": 255,
+          "width": 35,
+          "height": 26
         },
         {
           "label": "2",
-          "value": "Srednja skola"
+          "value": "Srednja skola",
+          "x": 916,
+          "y": 274,
+          "width": 35,
+          "height": 20
         },
         {
           "label": "3",
-          "value": "Visa ili visoka skola"
+          "value": "Visa ili visoka skola",
+          "x": 914,
+          "y": 289,
+          "width": 38,
+          "height": 28
         },
         {
           "label": "4",
-          "value": "Magisterijum/Master"
+          "value": "Magisterijum/Master",
+          "x": 918,
+          "y": 312,
+          "width": 34,
+          "height": 22
         },
         {
           "label": "5",
-          "value": "Doktorat"
+          "value": "Doktorat",
+          "x": 918,
+          "y": 325,
+          "width": 35,
+          "height": 22
         },
         {
           "label": "9",
-          "value": "Nepoznato"
+          "value": "Nepoznato",
+          "x": 917,
+          "y": 346,
+          "width": 37,
+          "height": 20
         }
       ]
     },
@@ -857,7 +1003,7 @@
       "page": 2,
       "coordinates": {
         "x": 543,
-        "y": 372,
+        "y": 371,
         "width": 411,
         "height": 159
       },
@@ -865,27 +1011,51 @@
       "omr_options": [
         {
           "label": "1",
-          "value": "Osnovna skola ili manje"
+          "value": "Osnovna skola ili manje",
+          "x": 912,
+          "y": 396,
+          "width": 38,
+          "height": 26
         },
         {
           "label": "2",
-          "value": "Srednja skola"
+          "value": "Srednja skola",
+          "x": 914,
+          "y": 416,
+          "width": 41,
+          "height": 22
         },
         {
           "label": "3",
-          "value": "Visa ili visoka skola"
+          "value": "Visa ili visoka skola",
+          "x": 912,
+          "y": 432,
+          "width": 45,
+          "height": 31
         },
         {
           "label": "4",
-          "value": "Magisterijum/Master"
+          "value": "Magisterijum/Master",
+          "x": 914,
+          "y": 453,
+          "width": 38,
+          "height": 26
         },
         {
           "label": "5",
-          "value": "Doktorat"
+          "value": "Doktorat",
+          "x": 917,
+          "y": 469,
+          "width": 35,
+          "height": 25
         },
         {
           "label": "9",
-          "value": "Nepoznato"
+          "value": "Nepoznato",
+          "x": 918,
+          "y": 486,
+          "width": 34,
+          "height": 24
         }
       ]
     },
@@ -905,55 +1075,107 @@
       "omr_options": [
         {
           "label": "1",
-          "value": "Pomoc u obavljanju osnovnih radnji"
+          "value": "Pomoc u obavljanju osnovnih radnji",
+          "x": 912,
+          "y": 710,
+          "width": 43,
+          "height": 31
         },
         {
           "label": "2",
-          "value": "Arhitektonska dostupnost - prilaz"
+          "value": "Arhitektonska dostupnost - prilaz",
+          "x": 913,
+          "y": 763,
+          "width": 40,
+          "height": 32
         },
         {
           "label": "3",
-          "value": "Arhitektonska dostupnost - slepima"
+          "value": "Arhitektonska dostupnost - slepima",
+          "x": 916,
+          "y": 801,
+          "width": 38,
+          "height": 32
         },
         {
           "label": "4",
-          "value": "Skeniranje materijala u formatu"
+          "value": "Skeniranje materijala u formatu",
+          "x": 911,
+          "y": 850,
+          "width": 49,
+          "height": 33
         },
         {
           "label": "5",
-          "value": "Upotreba asistivnih tehnologija"
+          "value": "Upotreba asistivnih tehnologija",
+          "x": 912,
+          "y": 872,
+          "width": 46,
+          "height": 32
         },
         {
           "label": "6",
-          "value": "Angažovanje tumaca za znakovni jezik"
+          "value": "Angažovanje tumaca za znakovni jezik",
+          "x": 912,
+          "y": 891,
+          "width": 47,
+          "height": 32
         },
         {
           "label": "7",
-          "value": "Prevoz do visokoskolske ustanove"
+          "value": "Prevoz do visokoskolske ustanove",
+          "x": 912,
+          "y": 921,
+          "width": 45,
+          "height": 33
         },
         {
           "label": "8",
-          "value": "Postajanje induktivnih petlji"
+          "value": "Postajanje induktivnih petlji",
+          "x": 917,
+          "y": 958,
+          "width": 36,
+          "height": 29
         },
         {
           "label": "9",
-          "value": "Pomoc u verbalnom obrazanju"
+          "value": "Pomoc u verbalnom obrazanju",
+          "x": 911,
+          "y": 981,
+          "width": 45,
+          "height": 29
         },
         {
           "label": "10",
-          "value": "Pomoc u prepoznavanju funkcija ustanove"
+          "value": "Pomoc u prepoznavanju funkcija ustanove",
+          "x": 908,
+          "y": 1011,
+          "width": 47,
+          "height": 37
         },
         {
           "label": "11",
-          "value": "Prilagodjavanje vremena trajanja"
+          "value": "Prilagodjavanje vremena trajanja",
+          "x": 912,
+          "y": 1048,
+          "width": 37,
+          "height": 31
         },
         {
           "label": "12",
-          "value": "Pomoc u savladavanju akademskih obaveza"
+          "value": "Pomoc u savladavanju akademskih obaveza",
+          "x": 911,
+          "y": 1084,
+          "width": 41,
+          "height": 30
         },
         {
           "label": "13",
-          "value": "Nista od navedenog"
+          "value": "Nista od navedenog",
+          "x": 907,
+          "y": 1102,
+          "width": 57,
+          "height": 32
         }
       ]
     },

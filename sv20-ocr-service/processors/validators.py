@@ -27,6 +27,142 @@ class FieldValidator:
         (r"^\d{2}\.\d{2}\.\d{2}$", "%d.%m.%y"),
     ]
 
+    @staticmethod
+    def clean_year_ocr(value: str) -> str:
+        """
+        SMART CLEANING za godine u formatu 20XX ili 19XX.
+
+        OCR greške:
+        - "2025" -> "2925"
+        - "2006" -> "12101006" (datum prepoznat kao godina)
+
+        Strategija:
+        1. Traži 4 uzastopne cifre koje počinju sa "20" ili "19"
+        2. Ako ne pronađe, uzmi poslednje 4 cifre
+        3. Ako počinje sa "29", zameni sa "20"
+
+        Args:
+            value: OCR tekst (može biti "2925", "12101006", "25", itd.)
+
+        Returns:
+            Očišćena godina u formatu 20XX ili 19XX
+        """
+        # Izvuci sve cifre
+        digits = re.sub(r'\D', '', value)
+
+        if not digits:
+            return value
+
+        # PRIORITET: Traži 4 uzastopne cifre koje počinju sa "20" ili "19"
+        if len(digits) >= 4:
+            for i in range(len(digits) - 3):
+                candidate = digits[i:i+4]
+                if candidate.startswith(('20', '19')):
+                    # Pronađena validna godina!
+                    return candidate
+
+        # Specijalni slučaj: 8 cifara = možda datum u formatu DDMMYYYY
+        # OCR može pročitati "12.10.2006" kao "12101006"
+        if len(digits) == 8:
+            # Uzmi poslednje 4 cifre (YYYY)
+            year = digits[4:]
+            # Ali ako ne počinje sa 19/20, probaj da dodaš "20" ispred poslednje 2
+            if not year.startswith(('19', '20')):
+                # Možda je OCR promašio prvu cifru godine
+                # "12101006" -> godina bi trebalo biti "2006", ali OCR čita "1006"
+                # Heuristika: ako je godina < 100, dodaj "20" ispred
+                year_int = int(year)
+                if year_int < 100:
+                    # "06" -> "2006"
+                    return "20" + year[-2:]
+                elif 100 <= year_int < 1940:
+                    # "1006" -> verovatno OCR greška, probaj "2006"
+                    return "20" + year[-2:]
+            return year
+
+        # Ako ima više od 4 cifre (i nije pronađena "20XX" ili "19XX"), uzmi POSLEDNJE 4
+        if len(digits) > 4:
+            digits = digits[-4:]
+
+        # Ako ima manje od 4, a više od 2, uzmi POSLEDNJE 2 i dodaj "20"
+        if 2 <= len(digits) < 4:
+            digits = "20" + digits[-2:]
+
+        # Ako je tačno 4 cifre
+        if len(digits) == 4:
+            # Proveri da li počinje sa "29" (OCR greška za "20")
+            if digits.startswith("29"):
+                digits = "20" + digits[2:]  # 2925 -> 2025
+
+        return digits
+
+    @staticmethod
+    def clean_date_ocr(value: str) -> str:
+        """
+        SMART CLEANING za datume.
+
+        Primer: "У БЕОГРАДУ, 1.7. 2025. год" -> "1.7.2025"
+
+        Strategija:
+        - Pretraži regex pattern za DD.MM.YYYY ili D.M.YYYY
+        - Izvuci i normalizuj
+        """
+        # Tražimo pattern: 1-2 cifre . 1-2 cifre . 4 cifre
+        pattern = r'(\d{1,2})\.(\d{1,2})\.?\s*(\d{4})'
+        match = re.search(pattern, value)
+
+        if match:
+            day = match.group(1).zfill(2)    # Dodaj 0 ispred ako treba (1 -> 01)
+            month = match.group(2).zfill(2)
+            year = match.group(3)
+            return f"{day}.{month}.{year}"
+
+        # Ako nema match, vrati original
+        return value
+
+    @staticmethod
+    def clean_jmbg_ocr(value: str, auto_correct_checksum: bool = True) -> str:
+        """
+        SMART CLEANING za JMBG.
+
+        Args:
+            value: OCR tekst (može imati razmake, crte)
+            auto_correct_checksum: Da li automatski korigovati kontrolnu cifru
+
+        Returns:
+            Očišćeni JMBG (13 cifara)
+        """
+        # Ukloni sve što nije cifra
+        digits = re.sub(r'\D', '', value)
+
+        if len(digits) != 13:
+            return digits
+
+        if auto_correct_checksum:
+            # Izračunaj tačnu kontrolnu cifru
+            weights = [7, 6, 5, 4, 3, 2, 7, 6, 5, 4, 3, 2]
+            total = sum(int(digits[i]) * weights[i] for i in range(12))
+            remainder = total % 11
+
+            if remainder == 0:
+                expected_check = 0
+            elif remainder == 1:
+                # Invalidan JMBG - ne može se korektovati
+                logger.warning(f"[JMBG CLEAN] JMBG sa ostatkom 1 je invalidan: {digits}")
+                return digits
+            else:
+                expected_check = 11 - remainder
+
+            # Zameni kontrolnu cifru
+            corrected = digits[:12] + str(expected_check)
+
+            if corrected != digits:
+                logger.info(f"[JMBG CLEAN] AUTO-CORRECT: {digits} -> {corrected}")
+
+            return corrected
+
+        return digits
+
     @classmethod
     def validate_jmbg(cls, value: str) -> Tuple[bool, str, Optional[str]]:
         """
@@ -43,34 +179,21 @@ class FieldValidator:
         Returns:
             (is_valid, cleaned_value, error_message)
         """
-        # JMBG Validation with Substring Search
-        # Often OCR reads extra digits (like vertical lines or box edges).
-        # We search specifically for a 13-digit sequence that passes Modulo 11.
-        
-        # 1. Clean input
-        digits = re.sub(r'\D', '', value)
-        
-        # 2. If exactly 13, validate directly
-        if len(digits) == 13:
-            if cls._validate_jmbg_checksum(digits):
-                return True, digits, None
-            else:
-                 return False, digits, "Neispravna kontrolna cifra JMBG-a"
+        # SMART CLEANING - automatski koriguje kontrolnu cifru ako je OCR promašio
+        cleaned = cls.clean_jmbg_ocr(value, auto_correct_checksum=True)
 
-        # 3. If longer than 13, scan for valid substrings
-        if len(digits) > 13:
-            # Sliding window of size 13
-            for i in range(len(digits) - 12):
-                candidate = digits[i : i+13]
-                if cls._validate_jmbg_checksum(candidate):
-                    # Found a valid JMBG!
-                    return True, candidate, None
-            
-            # If no valid substring found
-            return False, digits, f"Nije pronadjen validan JMBG u nizu od {len(digits)} cifara"
+        # Proveri da li ima tačno 13 cifara
+        if len(cleaned) != cls.JMBG_LENGTH:
+            return False, cleaned, f"JMBG mora imati {cls.JMBG_LENGTH} cifara, ima {len(cleaned)}"
 
-        # 4. If shorter than 13
-        return False, digits, f"JMBG mora imati 13 cifara, ima {len(digits)}"
+        if not cleaned.isdigit():
+            return False, cleaned, "JMBG mora sadržati samo cifre"
+
+        # Validacija kontrolne cifre (posle auto-korekcije trebalo bi da bude OK)
+        if cls._validate_jmbg_checksum(cleaned):
+            return True, cleaned, None
+        else:
+            return False, cleaned, "Neispravna kontrolna cifra JMBG-a"
 
     @staticmethod
     def _validate_jmbg_checksum(jmbg: str) -> bool:
@@ -180,7 +303,9 @@ class FieldValidator:
         Returns:
             (is_valid, cleaned_value, error_message)
         """
-        cleaned = value.strip()
+        # SMART CLEANING - izvlači datum iz kompleksnih tekstova
+        # Primer: "У БЕОГРАДУ, 1.7. 2025. год" -> "01.07.2025"
+        cleaned = cls.clean_date_ocr(value)
 
         # Pokusaj parsirati po poznatim formatima
         for pattern, date_format in cls.DATE_PATTERNS:
@@ -367,6 +492,15 @@ class FieldValidator:
             # Specijalan slucaj za JMBG
             if validation.get('length') == 13 or 'jmbg' in field_name.lower():
                 is_valid, cleaned, error = cls.validate_jmbg(value)
+            # Specijalan slucaj za godine (godina_rodjenja, godina_upisa, itd.)
+            elif 'godina' in field_name.lower() and 'studija' not in field_name.lower():
+                # SMART CLEANING za godine: "2925" -> "2025", "12006" -> "2006"
+                cleaned_value = cls.clean_year_ocr(value)
+                is_valid, cleaned, error = cls.validate_numeric(
+                    cleaned_value,
+                    min_val=validation.get('min'),
+                    max_val=validation.get('max')
+                )
             else:
                 is_valid, cleaned, error = cls.validate_numeric(
                     value,

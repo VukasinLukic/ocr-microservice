@@ -1,0 +1,341 @@
+C:\Users\INSOMNIA\ocr-microservice\sv20-ocr-service\api\server.py:122: DeprecationWarning: 
+        on_event is deprecated, use lifespan event handlers instead.
+
+        Read more about it in the
+        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+        
+  @app.on_event("startup")
+INFO:     Started server process [14692]
+INFO:     Waiting for application startup.
+INFO:__main__:==================================================
+INFO:__main__:Pokrecem SV-20 OCR Mikroservis...
+INFO:__main__:==================================================
+INFO:__main__:Image procesori inicijalizovani
+INFO:__main__:Inicijalizujem OCR Engine...
+INFO:processors.ocr_engine:Dostupni ONNX provideri: ['DmlExecutionProvider', 'CPUExecutionProvider']
+INFO:processors.ocr_engine:Koristi se AMD DirectML GPU akceleracija
+INFO:processors.ocr_engine:Inicijalizujem EasyOCR: jezici=['ru', 'rs_cyrillic', 'be', 'bg', 'uk', 'mn', 'en'], GPU=True
+INFO:processors.ocr_engine:OCR Engine inicijalizovan uspesno: jezici=['ru', 'rs_cyrillic', 'be', 'bg', 'uk', 'mn', 'en'], GPU=True, backend=directml
+INFO:__main__:OCR Engine spreman: {'languages': ['ru', 'rs_cyrillic', 'be', 'bg', 'uk', 'mn', 'en'], 'gpu_enabled': True, 'backend': 'directml', 'model_directory': 'C:\\Users\\INSOMNIA\\ocr-microservice\\sv20-ocr-service\\models', 'initialized': True}
+INFO:__main__:Template ucitan uspesno
+INFO:__main__:==================================================
+INFO:__main__:Servis spreman na http://127.0.0.1:9001
+INFO:__main__:==================================================
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:9001 (Press CTRL+C to quit)
+INFO:__main__:Primljen zahtev za OCR: primer.pdf, obrazac_id=None
+INFO:__main__:[OCR PROCESS] Konvertujem PDF u slike...
+INFO:processors.image_processor:PDF stranica 1 konvertovana, dimenzije: (3509, 2481, 3)
+INFO:processors.image_processor:PDF stranica 2 konvertovana, dimenzije: (3509, 2481, 3)
+INFO:__main__:[OCR PROCESS] PDF ima 2 stranica
+INFO:__main__:[OCR PROCESS] Procesuira\u0107e se SVE strane (1-2)
+INFO:__main__:[OCR PROCESS] === OBRADA STRANICE 1/2 ===
+INFO:__main__:[OCR PROCESS] Izvu\u010dena slika stranice 1, original dimenzije: (3509, 2481, 3)
+INFO:processors.image_processor:Resize: 2481x3509 -> 2048x2896 (scale=0.83)
+INFO:__main__:[OCR PROCESS] Nakon resize na 2048px: (2896, 2048, 3)
+WARNING:processors.image_processor:Perspective transform: pronadjen dokument je premali (5.38%), preskacemo. Verovatno je detektovan samo deo obrasca.
+INFO:processors.image_processor:Deskew: ugao 0.00° je prenizak, preskacemo
+INFO:processors.image_processor:Dokument pripremljen za OCR
+INFO:__main__:[OCR PROCESS] Preprocess završen
+INFO:__main__:[OCR PROCESS] Polja za stranicu 1: 24 (od toga 4 OMR polja)
+INFO:processors.image_processor:Deskew: ugao 0.00° je prenizak, preskacemo
+C:\Users\INSOMNIA\AppData\Local\Programs\Python\Python313\Lib\site-packages\torch\utils\data\dataloader.py:775: UserWarning: 'pin_memory' argument is set as true but no accelerator is found, then device pinned memory won't be used.
+  super().__init__(loader)
+INFO:processors.image_processor:Uklonjene kucice (13 celija) - Aggressive mode
+INFO:processors.validators:[JMBG CLEAN] AUTO-CORRECT: 0101006710111 -> 0101006710116
+INFO:__main__:[SCALE] Scaled 9 OMR options for field vrsta_studija (scale=2.0)
+INFO:__main__:[OMR] === Process OMR Field: vrsta_studija (type=OMR_SINGLE) ===
+INFO:__main__:[OMR] Koordinate polja: x=186, y=1570, w=822, h=424
+INFO:__main__:[OMR] Broj opcija: 9
+INFO:__main__:[OMR] ROI extracted, dimensions: (434, 832)
+INFO:__main__:[OMR CONVERT] Starting conversion of 9 options
+INFO:__main__:[OMR CONVERT] Option '1': abs(938,1592,62,60) -> rel(752,22,62,60)
+INFO:__main__:[OMR CONVERT] Option '2': abs(944,1638,50,44) -> rel(758,68,50,44)
+INFO:__main__:[OMR CONVERT] Option '3': abs(948,1668,44,40) -> rel(762,98,44,40)
+INFO:__main__:[OMR CONVERT] Option '4': abs(942,1728,54,44) -> rel(756,158,54,44)
+INFO:__main__:[OMR CONVERT] Option '5': abs(940,1762,50,40) -> rel(754,192,50,40)
+INFO:__main__:[OMR CONVERT] Option '6': abs(938,1794,54,40) -> rel(752,224,54,40)
+INFO:__main__:[OMR CONVERT] Option '7': abs(942,1830,54,40) -> rel(756,260,54,40)
+INFO:__main__:[OMR CONVERT] Option '8': abs(936,1896,60,40) -> rel(750,326,60,40)
+INFO:__main__:[OMR CONVERT] Option '9': abs(940,1930,52,40) -> rel(754,360,52,40)
+INFO:__main__:[OMR CONVERT] Converted 9/9 options with coordinates
+INFO:__main__:[OMR] Starting single-select detection...
+INFO:processors.omr_logic:[OMR] Koristim precizne koordinate krugova za fill_ratio analizu
+INFO:processors.omr_logic:[OMR PRECISE] Analiziram 9 opcija sa preciznim koordinatama
+INFO:processors.omr_logic:[OMR PRECISE] 1: fill=0.230, edge=0.401, combined=0.299
+INFO:processors.omr_logic:[OMR PRECISE] 2: fill=0.182, edge=0.289, combined=0.225
+INFO:processors.omr_logic:[OMR PRECISE] 3: fill=0.095, edge=0.130, combined=0.109
+INFO:processors.omr_logic:[OMR PRECISE] 4: fill=0.065, edge=0.100, combined=0.079
+INFO:processors.omr_logic:[OMR PRECISE] 5: fill=0.112, edge=0.322, combined=0.196
+INFO:processors.omr_logic:[OMR PRECISE] 6: fill=0.111, edge=0.373, combined=0.215
+INFO:processors.omr_logic:[OMR PRECISE] 7: fill=0.080, edge=0.270, combined=0.156
+INFO:processors.omr_logic:[OMR PRECISE] 8: fill=0.081, edge=0.206, combined=0.131
+INFO:processors.omr_logic:[OMR PRECISE] 9: fill=0.111, edge=0.328, combined=0.197
+INFO:processors.omr_logic:[OMR PRECISE] \u2713 Detekcija: 1 = Osnovne akademske studije (conf=0.96)
+INFO:processors.omr_logic:[OMR] Precise coords: Osnovne akademske studije (conf=0.96, fill=0.230)
+INFO:__main__:[OMR] Rezultat: value='Osnovne akademske studije', confidence=96.2%, method=precise_coords
+INFO:processors.image_processor:Uklonjene kucice (13 celija) - Aggressive mode
+INFO:processors.image_processor:Uklonjene kucice (13 celija) - Aggressive mode
+INFO:__main__:[SCALE] Scaled 2 OMR options for field nacin_finansiranja (scale=2.0)
+INFO:__main__:[OMR] === Process OMR Field: nacin_finansiranja (type=OMR_SINGLE) ===
+INFO:__main__:[OMR] Koordinate polja: x=158, y=2648, w=854, h=136
+INFO:__main__:[OMR] Broj opcija: 2
+INFO:__main__:[OMR] ROI extracted, dimensions: (146, 864)
+INFO:__main__:[OMR CONVERT] Starting conversion of 2 options
+INFO:__main__:[OMR CONVERT] Option '1': abs(938,2652,62,62) -> rel(780,4,62,62)
+INFO:__main__:[OMR CONVERT] Option '2': abs(940,2698,66,52) -> rel(782,50,66,52)
+INFO:__main__:[OMR CONVERT] Converted 2/2 options with coordinates
+INFO:__main__:[OMR] Starting single-select detection...
+INFO:processors.omr_logic:[OMR] Koristim precizne koordinate krugova za fill_ratio analizu
+INFO:processors.omr_logic:[OMR PRECISE] Analiziram 2 opcija sa preciznim koordinatama
+INFO:processors.omr_logic:[OMR PRECISE] 1: fill=0.050, edge=0.069, combined=0.058
+INFO:processors.omr_logic:[OMR PRECISE] 2: fill=0.205, edge=0.191, combined=0.200
+INFO:processors.omr_logic:[OMR PRECISE] \u2713 Detekcija: 2 = Samofinansiranje (conf=1.00)
+INFO:processors.omr_logic:[OMR] Precise coords: Samofinansiranje (conf=1.00, fill=0.205)
+INFO:__main__:[OMR] Rezultat: value='Samofinansiranje', confidence=100.0%, method=precise_coords
+INFO:__main__:[SCALE] Scaled 2 OMR options for field pol (scale=2.0)
+INFO:__main__:[OMR] === Process OMR Field: pol (type=OMR_SINGLE) ===
+INFO:__main__:[OMR] Koordinate polja: x=1030, y=1408, w=932, h=128
+INFO:__main__:[OMR] Broj opcija: 2
+INFO:__main__:[OMR] ROI extracted, dimensions: (138, 942)
+INFO:__main__:[OMR CONVERT] Starting conversion of 2 options
+INFO:__main__:[OMR CONVERT] Option '1': abs(1830,1438,76,54) -> rel(800,30,76,54)
+INFO:__main__:[OMR CONVERT] Option '2': abs(1836,1476,68,46) -> rel(806,68,68,46)
+INFO:__main__:[OMR CONVERT] Converted 2/2 options with coordinates
+INFO:__main__:[OMR] Starting single-select detection...
+INFO:processors.omr_logic:[OMR] Koristim precizne koordinate krugova za fill_ratio analizu
+INFO:processors.omr_logic:[OMR PRECISE] Analiziram 2 opcija sa preciznim koordinatama
+INFO:processors.omr_logic:[OMR PRECISE] 1: fill=0.189, edge=0.334, combined=0.247
+INFO:processors.omr_logic:[OMR PRECISE] 2: fill=0.168, edge=0.374, combined=0.250
+WARNING:processors.omr_logic:[OMR PRECISE] Razlika izme\u0111u 1. i 2. opcije je mala (0.003) - možda je nejasno
+INFO:processors.omr_logic:[OMR PRECISE] \u2713 Detekcija: 2 = Z (conf=0.70)
+INFO:processors.omr_logic:[OMR] Precise coords: Z (conf=0.70, fill=0.168)
+INFO:__main__:[OMR] Rezultat: value='Z', confidence=70.0%, method=precise_coords
+INFO:__main__:[SCALE] Scaled 3 OMR options for field bracni_status (scale=2.0)
+INFO:__main__:[OMR] === Process OMR Field: bracni_status (type=OMR_SINGLE) ===
+INFO:__main__:[OMR] Koordinate polja: x=1066, y=2548, w=840, h=220
+INFO:__main__:[OMR] Broj opcija: 3
+INFO:__main__:[OMR] ROI extracted, dimensions: (230, 850)
+INFO:__main__:[OMR CONVERT] Starting conversion of 3 options
+INFO:__main__:[OMR CONVERT] Option '1': abs(1834,2586,66,60) -> rel(768,38,66,60)
+INFO:__main__:[OMR CONVERT] Option '2': abs(1844,2630,50,50) -> rel(778,82,50,50)
+INFO:__main__:[OMR CONVERT] Option '3': abs(1844,2662,52,50) -> rel(778,114,52,50)
+INFO:__main__:[OMR CONVERT] Converted 3/3 options with coordinates
+INFO:__main__:[OMR] Starting single-select detection...
+INFO:processors.omr_logic:[OMR] Koristim precizne koordinate krugova za fill_ratio analizu
+INFO:processors.omr_logic:[OMR PRECISE] Analiziram 3 opcija sa preciznim koordinatama
+INFO:processors.omr_logic:[OMR PRECISE] 1: fill=0.210, edge=0.490, combined=0.322
+INFO:processors.omr_logic:[OMR PRECISE] 2: fill=0.190, edge=0.323, combined=0.243
+INFO:processors.omr_logic:[OMR PRECISE] 3: fill=0.089, edge=0.181, combined=0.126
+INFO:processors.omr_logic:[OMR PRECISE] \u2713 Detekcija: 1 = Neozenjen/Neudata (conf=0.96)
+INFO:processors.omr_logic:[OMR] Precise coords: Neozenjen/Neudata (conf=0.96, fill=0.210)
+INFO:__main__:[OMR] Rezultat: value='Neozenjen/Neudata', confidence=96.0%, method=precise_coords
+INFO:__main__:[OCR PROCESS] === OBRADA STRANICE 2/2 ===
+INFO:__main__:[OCR PROCESS] Izvu\u010dena slika stranice 2, original dimenzije: (3509, 2481, 3)
+INFO:processors.image_processor:Resize: 2481x3509 -> 2048x2896 (scale=0.83)
+INFO:__main__:[OCR PROCESS] Nakon resize na 2048px: (2896, 2048, 3)
+WARNING:processors.image_processor:Perspective transform: nije pronadjen dokument cetvorougao
+INFO:processors.image_processor:Deskew: ugao 0.00° je prenizak, preskacemo
+INFO:processors.image_processor:Dokument pripremljen za OCR
+INFO:__main__:[OCR PROCESS] Preprocess završen
+INFO:__main__:[OCR PROCESS] Polja za stranicu 2: 13 (od toga 8 OMR polja)
+INFO:__main__:[SCALE] Scaled 6 OMR options for field tip_smestaja (scale=2.0)
+INFO:__main__:[OMR] === Process OMR Field: tip_smestaja (type=OMR_SINGLE) ===
+INFO:__main__:[OMR] Koordinate polja: x=192, y=484, w=814, h=222
+INFO:__main__:[OMR] Broj opcija: 6
+INFO:__main__:[OMR] ROI extracted, dimensions: (232, 824)
+INFO:__main__:[OMR CONVERT] Starting conversion of 6 options
+INFO:__main__:[OMR CONVERT] Option '1': abs(926,474,74,56) -> rel(734,-10,74,56)
+INFO:__main__:[OMR CONVERT] Option '2': abs(930,524,64,40) -> rel(738,40,64,40)
+INFO:__main__:[OMR CONVERT] Option '3': abs(928,560,76,40) -> rel(736,76,76,40)
+INFO:__main__:[OMR CONVERT] Option '4': abs(932,594,68,40) -> rel(740,110,68,40)
+INFO:__main__:[OMR CONVERT] Option '5': abs(930,632,76,40) -> rel(738,148,76,40)
+INFO:__main__:[OMR CONVERT] Option '6': abs(930,664,70,42) -> rel(738,180,70,42)
+INFO:__main__:[OMR CONVERT] Converted 6/6 options with coordinates
+INFO:__main__:[OMR] Starting single-select detection...
+INFO:processors.omr_logic:[OMR] Koristim precizne koordinate krugova za fill_ratio analizu
+INFO:processors.omr_logic:[OMR PRECISE] Analiziram 6 opcija sa preciznim koordinatama
+INFO:processors.omr_logic:[OMR PRECISE] 1: fill=0.230, edge=0.500, combined=0.338
+INFO:processors.omr_logic:[OMR PRECISE] 2: fill=0.169, edge=0.433, combined=0.275
+INFO:processors.omr_logic:[OMR PRECISE] 3: fill=0.069, edge=0.217, combined=0.128
+INFO:processors.omr_logic:[OMR PRECISE] 4: fill=0.076, edge=0.219, combined=0.133
+INFO:processors.omr_logic:[OMR PRECISE] 5: fill=0.059, edge=0.103, combined=0.077
+INFO:processors.omr_logic:[OMR PRECISE] 6: fill=0.081, edge=0.229, combined=0.140
+INFO:processors.omr_logic:[OMR PRECISE] \u2713 Detekcija: 1 = Kod roditelja (conf=0.91)
+INFO:processors.omr_logic:[OMR] Precise coords: Kod roditelja (conf=0.91, fill=0.230)
+INFO:__main__:[OMR] Rezultat: value='Kod roditelja', confidence=91.3%, method=precise_coords
+INFO:__main__:[SCALE] Scaled 7 OMR options for field izvor_sredstava (scale=2.0)
+INFO:__main__:[OMR] === Process OMR Field: izvor_sredstava (type=OMR_MULTI) ===
+INFO:__main__:[OMR] Koordinate polja: x=176, y=858, w=830, h=478
+INFO:__main__:[OMR] Broj opcija: 7
+INFO:__main__:[OMR] ROI extracted, dimensions: (488, 840)
+INFO:__main__:[OMR CONVERT] Starting conversion of 7 options
+INFO:__main__:[OMR CONVERT] Option '1': abs(928,862,74,62) -> rel(752,4,74,62)
+INFO:__main__:[OMR CONVERT] Option '2': abs(930,930,78,58) -> rel(754,72,78,58)
+INFO:__main__:[OMR CONVERT] Option '3': abs(930,1034,72,62) -> rel(754,176,72,62)
+INFO:__main__:[OMR CONVERT] Option '4': abs(932,1134,70,54) -> rel(756,276,70,54)
+INFO:__main__:[OMR CONVERT] Option '5': abs(934,1174,66,48) -> rel(758,316,66,48)
+INFO:__main__:[OMR CONVERT] Option '6': abs(928,1214,74,42) -> rel(752,356,74,42)
+INFO:__main__:[OMR CONVERT] Option '7': abs(934,1250,70,52) -> rel(758,392,70,52)
+INFO:__main__:[OMR CONVERT] Converted 7/7 options with coordinates
+INFO:__main__:[OMR] Starting multi-select detection...
+INFO:processors.omr_logic:[OMR MULTI] Koristim precizne koordinate za multi-select detekciju
+INFO:processors.omr_logic:[OMR MULTI PRECISE] Analiziram 7 opcija
+INFO:processors.omr_logic:[OMR MULTI PRECISE] 1: fill=0.199, edge=0.322, combined=0.248 \u2192 \u2713
+INFO:processors.omr_logic:[OMR MULTI PRECISE] 2: fill=0.040, edge=0.077, combined=0.054 \u2192 \u2717
+INFO:processors.omr_logic:[OMR MULTI PRECISE] 3: fill=0.038, edge=0.026, combined=0.033 \u2192 \u2717
+INFO:processors.omr_logic:[OMR MULTI PRECISE] 4: fill=0.043, edge=0.105, combined=0.068 \u2192 \u2717
+INFO:processors.omr_logic:[OMR MULTI PRECISE] 5: fill=0.091, edge=0.316, combined=0.181 \u2192 \u2713
+INFO:processors.omr_logic:[OMR MULTI PRECISE] 6: fill=0.089, edge=0.320, combined=0.182 \u2192 \u2713
+INFO:processors.omr_logic:[OMR MULTI PRECISE] 7: fill=0.057, edge=0.172, combined=0.103 \u2192 \u2717
+INFO:processors.omr_logic:[OMR MULTI PRECISE] \u2713 Detektovano 3 opcija: ['Izdrzavanje od roditelja', 'Stipendije firmi i kompanija', 'Komercijalni kredit']
+INFO:__main__:[OMR] Rezultat: value='Izdrzavanje od roditelja, Stipendije firmi i kompanija, Komercijalni kredit', confidence=90.0%, method=multi_select_precise
+INFO:__main__:[SCALE] Scaled 2 OMR options for field da_li_ste_zaposleni (scale=2.0)
+INFO:__main__:[OMR] === Process OMR Field: da_li_ste_zaposleni (type=OMR_SINGLE) ===
+INFO:__main__:[OMR] Koordinate polja: x=182, y=1622, w=826, h=104
+INFO:__main__:[OMR] Broj opcija: 2
+INFO:__main__:[OMR] ROI extracted, dimensions: (114, 836)
+INFO:__main__:[OMR CONVERT] Starting conversion of 2 options
+INFO:__main__:[OMR CONVERT] Option '1': abs(932,1622,68,48) -> rel(750,0,68,48)
+INFO:__main__:[OMR CONVERT] Option '2': abs(924,1656,78,54) -> rel(742,34,78,54)
+INFO:__main__:[OMR CONVERT] Converted 2/2 options with coordinates
+INFO:__main__:[OMR] Starting single-select detection...
+INFO:processors.omr_logic:[OMR] Koristim precizne koordinate krugova za fill_ratio analizu
+INFO:processors.omr_logic:[OMR PRECISE] Analiziram 2 opcija sa preciznim koordinatama
+INFO:processors.omr_logic:[OMR PRECISE] 1: fill=0.069, edge=0.103, combined=0.082
+INFO:processors.omr_logic:[OMR PRECISE] 2: fill=0.201, edge=0.379, combined=0.272
+INFO:processors.omr_logic:[OMR PRECISE] \u2713 Detekcija: 2 = Ne (conf=1.00)
+INFO:processors.omr_logic:[OMR] Precise coords: Ne (conf=1.00, fill=0.201)
+INFO:__main__:[OMR] Rezultat: value='Ne', confidence=100.0%, method=precise_coords
+INFO:__main__:[SCALE] Scaled 5 OMR options for field izdrzavanje_drugih (scale=2.0)
+INFO:__main__:[OMR] === Process OMR Field: izdrzavanje_drugih (type=OMR_SINGLE) ===
+INFO:__main__:[OMR] Koordinate polja: x=186, y=1846, w=816, h=228
+INFO:__main__:[OMR] Broj opcija: 5
+INFO:__main__:[OMR] ROI extracted, dimensions: (238, 826)
+INFO:__main__:[OMR CONVERT] Starting conversion of 5 options
+INFO:__main__:[OMR CONVERT] Option '1': abs(930,1850,70,72) -> rel(744,4,70,72)
+INFO:__main__:[OMR CONVERT] Option '2': abs(924,1902,78,54) -> rel(738,56,78,54)
+INFO:__main__:[OMR CONVERT] Option '3': abs(926,1942,74,42) -> rel(740,96,74,42)
+INFO:__main__:[OMR CONVERT] Option '4': abs(926,1976,74,40) -> rel(740,130,74,40)
+INFO:__main__:[OMR CONVERT] Option '5': abs(930,2002,68,54) -> rel(744,156,68,54)
+INFO:__main__:[OMR CONVERT] Converted 5/5 options with coordinates
+INFO:__main__:[OMR] Starting single-select detection...
+INFO:processors.omr_logic:[OMR] Koristim precizne koordinate krugova za fill_ratio analizu
+INFO:processors.omr_logic:[OMR PRECISE] Analiziram 5 opcija sa preciznim koordinatama
+INFO:processors.omr_logic:[OMR PRECISE] 1: fill=0.176, edge=0.250, combined=0.205
+INFO:processors.omr_logic:[OMR PRECISE] 2: fill=0.131, edge=0.299, combined=0.198
+INFO:processors.omr_logic:[OMR PRECISE] 3: fill=0.072, edge=0.233, combined=0.137
+INFO:processors.omr_logic:[OMR PRECISE] 4: fill=0.084, edge=0.291, combined=0.167
+INFO:processors.omr_logic:[OMR PRECISE] 5: fill=0.079, edge=0.217, combined=0.134
+WARNING:processors.omr_logic:[OMR PRECISE] Razlika izme\u0111u 1. i 2. opcije je mala (0.007) - možda je nejasno
+INFO:processors.omr_logic:[OMR PRECISE] \u2713 Detekcija: 1 = Ne (conf=0.70)
+INFO:processors.omr_logic:[OMR] Precise coords: Ne (conf=0.70, fill=0.176)
+INFO:__main__:[OMR] Rezultat: value='Ne', confidence=70.0%, method=precise_coords
+INFO:__main__:[SCALE] Scaled 2 OMR options for field roditelj_zaposlen (scale=2.0)
+INFO:__main__:[OMR] === Process OMR Field: roditelj_zaposlen (type=OMR_SINGLE) ===
+INFO:__main__:[OMR] Koordinate polja: x=174, y=2162, w=830, h=110
+INFO:__main__:[OMR] Broj opcija: 2
+INFO:__main__:[OMR] ROI extracted, dimensions: (120, 840)
+INFO:__main__:[OMR CONVERT] Starting conversion of 2 options
+INFO:__main__:[OMR CONVERT] Option '1': abs(926,2162,78,50) -> rel(752,0,78,50)
+INFO:__main__:[OMR CONVERT] Option '2': abs(932,2198,68,54) -> rel(758,36,68,54)
+INFO:__main__:[OMR CONVERT] Converted 2/2 options with coordinates
+INFO:__main__:[OMR] Starting single-select detection...
+INFO:processors.omr_logic:[OMR] Koristim precizne koordinate krugova za fill_ratio analizu
+INFO:processors.omr_logic:[OMR PRECISE] Analiziram 2 opcija sa preciznim koordinatama
+INFO:processors.omr_logic:[OMR PRECISE] 1: fill=0.185, edge=0.333, combined=0.244
+INFO:processors.omr_logic:[OMR PRECISE] 2: fill=0.143, edge=0.255, combined=0.188
+INFO:processors.omr_logic:[OMR PRECISE] \u2713 Detekcija: 1 = Da (conf=0.95)
+INFO:processors.omr_logic:[OMR] Precise coords: Da (conf=0.95, fill=0.185)
+INFO:__main__:[OMR] Rezultat: value='Da', confidence=94.8%, method=precise_coords
+INFO:__main__:[SCALE] Scaled 6 OMR options for field skolska_sprema_oca (scale=2.0)
+INFO:__main__:[OMR] === Process OMR Field: skolska_sprema_oca (type=OMR_SINGLE) ===
+INFO:__main__:[OMR] Koordinate polja: x=1074, y=474, w=828, h=270
+INFO:__main__:[OMR] Broj opcija: 6
+INFO:__main__:[OMR] ROI extracted, dimensions: (280, 838)
+INFO:__main__:[OMR CONVERT] Starting conversion of 6 options
+INFO:__main__:[OMR CONVERT] Option '1': abs(1832,510,70,52) -> rel(758,36,70,52)
+INFO:__main__:[OMR CONVERT] Option '2': abs(1832,548,70,40) -> rel(758,74,70,40)
+INFO:__main__:[OMR CONVERT] Option '3': abs(1828,578,76,56) -> rel(754,104,76,56)
+INFO:__main__:[OMR CONVERT] Option '4': abs(1836,624,68,44) -> rel(762,150,68,44)
+INFO:__main__:[OMR CONVERT] Option '5': abs(1836,650,70,44) -> rel(762,176,70,44)
+INFO:__main__:[OMR CONVERT] Option '9': abs(1834,692,74,40) -> rel(760,218,74,40)
+INFO:__main__:[OMR CONVERT] Converted 6/6 options with coordinates
+INFO:__main__:[OMR] Starting single-select detection...
+INFO:processors.omr_logic:[OMR] Koristim precizne koordinate krugova za fill_ratio analizu
+INFO:processors.omr_logic:[OMR PRECISE] Analiziram 6 opcija sa preciznim koordinatama
+INFO:processors.omr_logic:[OMR PRECISE] 1: fill=0.029, edge=0.019, combined=0.025
+INFO:processors.omr_logic:[OMR PRECISE] 2: fill=0.074, edge=0.223, combined=0.133
+INFO:processors.omr_logic:[OMR PRECISE] 3: fill=0.215, edge=0.447, combined=0.308
+INFO:processors.omr_logic:[OMR PRECISE] 4: fill=0.155, edge=0.249, combined=0.193
+INFO:processors.omr_logic:[OMR PRECISE] 5: fill=0.083, edge=0.274, combined=0.160
+INFO:processors.omr_logic:[OMR PRECISE] 9: fill=0.078, edge=0.228, combined=0.138
+INFO:processors.omr_logic:[OMR PRECISE] \u2713 Detekcija: 3 = Visa ili visoka skola (conf=1.00)
+INFO:processors.omr_logic:[OMR] Precise coords: Visa ili visoka skola (conf=1.00, fill=0.215)
+INFO:__main__:[OMR] Rezultat: value='Visa ili visoka skola', confidence=100.0%, method=precise_coords
+INFO:__main__:[SCALE] Scaled 6 OMR options for field skolska_sprema_majke (scale=2.0)
+INFO:__main__:[OMR] === Process OMR Field: skolska_sprema_majke (type=OMR_SINGLE) ===
+INFO:__main__:[OMR] Koordinate polja: x=1086, y=742, w=822, h=318
+INFO:__main__:[OMR] Broj opcija: 6
+INFO:__main__:[OMR] ROI extracted, dimensions: (328, 832)
+INFO:__main__:[OMR CONVERT] Starting conversion of 6 options
+INFO:__main__:[OMR CONVERT] Option '1': abs(1824,792,76,52) -> rel(738,50,76,52)
+INFO:__main__:[OMR CONVERT] Option '2': abs(1828,832,82,44) -> rel(742,90,82,44)
+INFO:__main__:[OMR CONVERT] Option '3': abs(1824,864,90,62) -> rel(738,122,90,62)
+INFO:__main__:[OMR CONVERT] Option '4': abs(1828,906,76,52) -> rel(742,164,76,52)
+INFO:__main__:[OMR CONVERT] Option '5': abs(1834,938,70,50) -> rel(748,196,70,50)
+INFO:__main__:[OMR CONVERT] Option '9': abs(1836,972,68,48) -> rel(750,230,68,48)
+INFO:__main__:[OMR CONVERT] Converted 6/6 options with coordinates
+INFO:__main__:[OMR] Starting single-select detection...
+INFO:processors.omr_logic:[OMR] Koristim precizne koordinate krugova za fill_ratio analizu
+INFO:processors.omr_logic:[OMR PRECISE] Analiziram 6 opcija sa preciznim koordinatama
+INFO:processors.omr_logic:[OMR PRECISE] 1: fill=0.033, edge=0.078, combined=0.051
+INFO:processors.omr_logic:[OMR PRECISE] 2: fill=0.067, edge=0.261, combined=0.145
+INFO:processors.omr_logic:[OMR PRECISE] 3: fill=0.180, edge=0.273, combined=0.217
+INFO:processors.omr_logic:[OMR PRECISE] 4: fill=0.136, edge=0.248, combined=0.181
+INFO:processors.omr_logic:[OMR PRECISE] 5: fill=0.064, edge=0.150, combined=0.098
+INFO:processors.omr_logic:[OMR PRECISE] 9: fill=0.083, edge=0.291, combined=0.167
+WARNING:processors.omr_logic:[OMR PRECISE] Razlika izme\u0111u 1. i 2. opcije je mala (0.036) - možda je nejasno
+INFO:processors.omr_logic:[OMR PRECISE] \u2713 Detekcija: 3 = Visa ili visoka skola (conf=0.70)
+INFO:processors.omr_logic:[OMR] Precise coords: Visa ili visoka skola (conf=0.70, fill=0.180)
+INFO:__main__:[OMR] Rezultat: value='Visa ili visoka skola', confidence=70.0%, method=precise_coords
+INFO:__main__:[SCALE] Scaled 13 OMR options for field potrebna_podrska (scale=2.0)
+INFO:__main__:[OMR] === Process OMR Field: potrebna_podrska (type=OMR_MULTI) ===
+INFO:__main__:[OMR] Koordinate polja: x=1066, y=1370, w=878, h=924
+INFO:__main__:[OMR] Broj opcija: 13
+INFO:__main__:[OMR] ROI extracted, dimensions: (934, 888)
+INFO:__main__:[OMR CONVERT] Starting conversion of 13 options
+INFO:__main__:[OMR CONVERT] Option '1': abs(1824,1420,86,62) -> rel(758,50,86,62)
+INFO:__main__:[OMR CONVERT] Option '2': abs(1826,1526,80,64) -> rel(760,156,80,64)
+INFO:__main__:[OMR CONVERT] Option '3': abs(1832,1602,76,64) -> rel(766,232,76,64)
+INFO:__main__:[OMR CONVERT] Option '4': abs(1822,1700,98,66) -> rel(756,330,98,66)
+INFO:__main__:[OMR CONVERT] Option '5': abs(1824,1744,92,64) -> rel(758,374,92,64)
+INFO:__main__:[OMR CONVERT] Option '6': abs(1824,1782,94,64) -> rel(758,412,94,64)
+INFO:__main__:[OMR CONVERT] Option '7': abs(1824,1842,90,66) -> rel(758,472,90,66)
+INFO:__main__:[OMR CONVERT] Option '8': abs(1834,1916,72,58) -> rel(768,546,72,58)
+INFO:__main__:[OMR CONVERT] Option '9': abs(1822,1962,90,58) -> rel(756,592,90,58)
+INFO:__main__:[OMR CONVERT] Option '10': abs(1816,2022,94,74) -> rel(750,652,94,74)
+INFO:__main__:[OMR CONVERT] Option '11': abs(1824,2096,74,62) -> rel(758,726,74,62)
+INFO:__main__:[OMR CONVERT] Option '12': abs(1822,2168,82,60) -> rel(756,798,82,60)
+INFO:__main__:[OMR CONVERT] Option '13': abs(1814,2204,114,64) -> rel(748,834,114,64)
+INFO:__main__:[OMR CONVERT] Converted 13/13 options with coordinates
+INFO:__main__:[OMR] Starting multi-select detection...
+INFO:processors.omr_logic:[OMR MULTI] Koristim precizne koordinate za multi-select detekciju
+INFO:processors.omr_logic:[OMR MULTI PRECISE] Analiziram 13 opcija
+INFO:processors.omr_logic:[OMR MULTI PRECISE] 1: fill=0.024, edge=0.026, combined=0.025 \u2192 \u2717
+INFO:processors.omr_logic:[OMR MULTI PRECISE] 2: fill=0.038, edge=0.028, combined=0.034 \u2192 \u2717
+INFO:processors.omr_logic:[OMR MULTI PRECISE] 3: fill=0.034, edge=0.021, combined=0.029 \u2192 \u2717
+INFO:processors.omr_logic:[OMR MULTI PRECISE] 4: fill=0.026, edge=0.018, combined=0.023 \u2192 \u2717
+INFO:processors.omr_logic:[OMR MULTI PRECISE] 5: fill=0.059, edge=0.160, combined=0.099 \u2192 \u2717
+INFO:processors.omr_logic:[OMR MULTI PRECISE] 6: fill=0.051, edge=0.132, combined=0.083 \u2192 \u2717
+INFO:processors.omr_logic:[OMR MULTI PRECISE] 7: fill=0.024, edge=0.038, combined=0.030 \u2192 \u2717
+INFO:processors.omr_logic:[OMR MULTI PRECISE] 8: fill=0.047, edge=0.098, combined=0.067 \u2192 \u2717
+INFO:processors.omr_logic:[OMR MULTI PRECISE] 9: fill=0.056, edge=0.145, combined=0.092 \u2192 \u2717
+INFO:processors.omr_logic:[OMR MULTI PRECISE] 10: fill=0.038, edge=0.019, combined=0.030 \u2192 \u2717
+INFO:processors.omr_logic:[OMR MULTI PRECISE] 11: fill=0.038, edge=0.014, combined=0.029 \u2192 \u2717
+INFO:processors.omr_logic:[OMR MULTI PRECISE] 12: fill=0.100, edge=0.165, combined=0.126 \u2192 \u2717
+INFO:processors.omr_logic:[OMR MULTI PRECISE] 13: fill=0.156, edge=0.191, combined=0.170 \u2192 \u2713
+INFO:processors.omr_logic:[OMR MULTI PRECISE] \u2713 Detektovano 1 opcija: ['Nista od navedenog']
+INFO:__main__:[OMR] Rezultat: value='Nista od navedenog', confidence=90.0%, method=multi_select_precise
+INFO:__main__:OCR zavrseno: 35 uspesno, 2 neuspesno, vreme: 15994ms
+INFO:     127.0.0.1:60591 - "POST /api/ocr/process HTTP/1.1" 200 OK

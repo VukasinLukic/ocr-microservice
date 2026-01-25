@@ -11,7 +11,26 @@
       "Bash(set PYTHONIOENCODING=utf-8:*)",
       "Bash(py -X utf8 download_models.py:*)",
       "Bash(py -c:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(tasklist:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill /F /PID 12920)",
+      "Bash(taskkill //F //PID 12920)",
+      "Bash(curl:*)",
+      "Bash(taskkill //F //PID 36516)",
+      "Bash(python:*)",
+      "Bash(python3:*)",
+      "Bash(\"C:\\\\Users\\\\INSOMNIA\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python313\\\\python.exe\" --version)",
+      "Bash(\"C:\\\\Users\\\\INSOMNIA\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python313\\\\python.exe\" main.py)",
+      "Bash(taskkill:*)",
+      "Bash(netstat:*)",
+      "Bash(C:/Users/INSOMNIA/AppData/Local/Programs/Python/Python313/python.exe -c \"import json; data=json.load\\(open\\(''../debug_result.json''\\)\\); print\\(''\\\\n''.join\\([f\"\"Field {f[''field_id'']}: {f[''field_name'']} -> {f.get\\(''detection_result'', {}\\).get\\(''value'', ''NO RESULT''\\)}\"\" for f in data[''omr_rois'']]\\)\\)\")",
+      "Bash(C:/Users/INSOMNIA/AppData/Local/Programs/Python/Python313/python.exe -c \"import json; data=json.load\\(open\\(''../debug_result.json'', encoding=''utf-8''\\)\\); print\\(''\\\\n''.join\\([f\"\"Field {f[''field_id'']}: {f[''field_name'']} -> {f.get\\(''detection_result'', {}\\).get\\(''value'', ''NO RESULT''\\)}\"\" for f in data[''omr_rois'']]\\)\\)\")",
+      "Bash(C:/Users/INSOMNIA/AppData/Local/Programs/Python/Python313/python.exe -c:*)",
+      "Bash(C:/Users/INSOMNIA/AppData/Local/Programs/Python/Python313/python.exe)",
+      "Bash(C:/Users/INSOMNIA/AppData/Local/Programs/Python/Python313/python.exe:*)",
+      "Bash(timeout /t 3)",
+      "Bash(iconv:*)"
     ]
   }
 }

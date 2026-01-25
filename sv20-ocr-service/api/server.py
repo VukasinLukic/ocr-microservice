@@ -450,13 +450,15 @@ async def process_image(
 
         if file_ext == '.pdf':
             # PDF - konvertuj SVE strane u slike
+            logger.info(f"[OCR PROCESS] Konvertujem PDF u slike...")
             all_images = pdf_processor.pdf_to_images(tmp_path)
             total_pages = len(all_images)
-            logger.info(f"PDF ima {total_pages} stranica")
+            logger.info(f"[OCR PROCESS] PDF ima {total_pages} stranica")
 
             # Odredite koje strane obraditi
             if page_number is not None:
                 # Samo jedna specificna strana
+                logger.info(f"[OCR PROCESS] Traži se stranica {page_number}")
                 if page_number > total_pages:
                     raise HTTPException(
                         status_code=400,
@@ -465,23 +467,32 @@ async def process_image(
                 pages_to_process = [page_number]
             else:
                 # Sve strane
+                logger.info(f"[OCR PROCESS] Procesuiraće se SVE strane (1-{total_pages})")
                 pages_to_process = list(range(1, total_pages + 1))
 
             # Obradi svaku stranu
             for current_page in pages_to_process:
-                logger.info(f"Obrada stranice {current_page}/{total_pages}")
+                logger.info(f"[OCR PROCESS] === OBRADA STRANICE {current_page}/{total_pages} ===")
                 img = all_images[current_page - 1]
+                logger.info(f"[OCR PROCESS] Izvučena slika stranice {current_page}, original dimenzije: {img.shape}")
+
                 img = image_processor.resize_to_width(img, TARGET_WIDTH)
+                logger.info(f"[OCR PROCESS] Nakon resize na {TARGET_WIDTH}px: {img.shape}")
+
                 img = image_processor.preprocess_full_document(img)
+                logger.info(f"[OCR PROCESS] Preprocess završen")
 
                 # Filtriraj polja za trenutnu stranicu
                 page_fields = [f for f in template['fields']
                               if f.get('page', 1) == current_page]
+                logger.info(f"[OCR PROCESS] Polja za stranicu {current_page}: {len(page_fields)} (od toga {sum(1 for f in page_fields if f.get('type','').startswith('OMR'))} OMR polja)")
 
                 for field in page_fields:
                     try:
-                        # Scale coordinates for High-Res Image
-                        scaled_field = field.copy()
+                        # Scale coordinates for High-Res Image - DEEP COPY required!
+                        import copy
+                        scaled_field = copy.deepcopy(field)
+
                         if 'coordinates' in scaled_field:
                             c = scaled_field['coordinates']
                             scaled_field['coordinates'] = {
@@ -490,6 +501,16 @@ async def process_image(
                                 'width': int(c['width'] * scale_factor),
                                 'height': int(c['height'] * scale_factor)
                             }
+
+                        # CRITICAL: Scale omr_options coordinates!
+                        if 'omr_options' in scaled_field:
+                            for opt in scaled_field['omr_options']:
+                                if 'x' in opt and 'y' in opt:
+                                    opt['x'] = int(opt['x'] * scale_factor)
+                                    opt['y'] = int(opt['y'] * scale_factor)
+                                    opt['width'] = int(opt.get('width', 40) * scale_factor)
+                                    opt['height'] = int(opt.get('height', 40) * scale_factor)
+                            logger.info(f"[SCALE] Scaled {len(scaled_field['omr_options'])} OMR options for field {scaled_field.get('name')} (scale={scale_factor})")
 
                         field_result = process_single_field(img, scaled_field, ocr_engine)
 
@@ -691,26 +712,63 @@ def process_omr_field(img, field_config: dict) -> OCRFieldResult:
     coords = field_config.get('coordinates', {})
     omr_options = field_config.get('omr_options', [])
 
+    logger.info(f"[OMR] === Process OMR Field: {field_name} (type={field_type}) ===")
+    logger.info(f"[OMR] Koordinate polja: x={coords.get('x')}, y={coords.get('y')}, w={coords.get('width')}, h={coords.get('height')}")
+    logger.info(f"[OMR] Broj opcija: {len(omr_options)}")
+
     try:
         # Iseci ROI
+        field_x = coords['x']
+        field_y = coords['y']
+
         roi = image_processor.crop_roi(
             img,
-            coords['x'], coords['y'],
+            field_x, field_y,
             coords['width'], coords['height']
         )
+        logger.info(f"[OMR] ROI extracted, dimensions: {roi.shape}")
+
+        # Convert absolute circle coordinates to RELATIVE (relative to ROI)
+        logger.info(f"[OMR CONVERT] Starting conversion of {len(omr_options)} options")
+
+        relative_options = []
+        has_coords_count = 0
+
+        for opt in omr_options:
+            if 'x' in opt and 'y' in opt:
+                # Absolute coordinates exist - convert to relative
+                has_coords_count += 1
+                relative_opt = opt.copy()
+                relative_opt['x'] = opt['x'] - field_x
+                relative_opt['y'] = opt['y'] - field_y
+                relative_options.append(relative_opt)
+                logger.info(f"[OMR CONVERT] Option '{opt.get('label')}': abs({opt['x']},{opt['y']},{opt.get('width')},{opt.get('height')}) -> rel({relative_opt['x']},{relative_opt['y']},{relative_opt.get('width')},{relative_opt.get('height')})")
+            else:
+                # No x,y - use original options
+                logger.warning(f"[OMR CONVERT] Option '{opt.get('label')}' has NO x,y coordinates!")
+                relative_options.append(opt)
+
+        logger.info(f"[OMR CONVERT] Converted {has_coords_count}/{len(omr_options)} options with coordinates")
+
+        # Koristi relativne koordinate za detekciju
+        options_to_use = relative_options if relative_options else omr_options
 
         if field_type == 'OMR_MULTI':
-            # Visestruki izbor
-            result = omr_processor.detect_multi_select(roi, omr_options)
+            # Multi-select
+            logger.info(f"[OMR] Starting multi-select detection...")
+            result = omr_processor.detect_multi_select(roi, options_to_use)
             ocr_value = ', '.join(result.get('values', []))
             validated_value = ocr_value
         else:
-            # Jednostruki izbor
-            result = omr_processor.detect_marked_option(roi, omr_options)
+            # Single-select
+            logger.info(f"[OMR] Starting single-select detection...")
+            result = omr_processor.detect_marked_option(roi, options_to_use)
             ocr_value = result.get('value', '') or ''
             validated_value = ocr_value
 
         confidence = result.get('confidence', 0.0) * 100
+
+        logger.info(f"[OMR] Rezultat: value='{ocr_value}', confidence={confidence:.1f}%, method={result.get('method')}")
 
         return OCRFieldResult(
             field_id=field_config['id'],
@@ -726,7 +784,7 @@ def process_omr_field(img, field_config: dict) -> OCRFieldResult:
         )
 
     except Exception as e:
-        logger.error(f"Greska u process_omr_field za {field_name}: {e}")
+        logger.error(f"[OMR] GREŠKA u process_omr_field za {field_name}: {e}", exc_info=True)
         return OCRFieldResult(
             field_id=field_config['id'],
             field_name=field_name,
@@ -810,6 +868,244 @@ async def get_info():
         "gpu_backend": Config.detect_gpu(),
         "target_dpi": Config.TARGET_DPI
     }
+
+
+@app.post("/api/debug/omr-rois")
+async def debug_omr_rois(
+    file: UploadFile = File(...),
+    page_number: Optional[int] = Form(1),
+    save_to_disk: Optional[bool] = Form(False)
+):
+    """
+    Debug endpoint - izdvaja i vraca sve OMR ROI-ove kao base64 slike.
+    Korisno za dijagnostiku zasto OMR detekcija ne radi.
+
+    VAŽNO: Koristi ISTI scaling kao glavni /api/ocr/process endpoint!
+
+    Args:
+        file: Slika/PDF dokumenta
+        page_number: Broj stranice (za PDF)
+        save_to_disk: Da li sacuvati ROI-ove na disk
+    """
+    try:
+        logger.info(f"[DEBUG OMR] === POČETAK DEBUG SESIJE ===")
+        logger.info(f"[DEBUG OMR] File: {file.filename}, Page: {page_number}, Save: {save_to_disk}")
+
+        content = await file.read()
+        file_ext = Path(file.filename).suffix.lower()
+
+        # KORISTI ISTI SCALING KAO GLAVNI ENDPOINT!
+        TARGET_WIDTH = 2048  # Isti kao u /api/ocr/process
+        TEMPLATE_WIDTH = 1024
+        scale_factor = TARGET_WIDTH / TEMPLATE_WIDTH  # = 2.0
+
+        logger.info(f"[DEBUG OMR] TARGET_WIDTH={TARGET_WIDTH}, TEMPLATE_WIDTH={TEMPLATE_WIDTH}, scale_factor={scale_factor}")
+
+        # Ucitaj sliku
+        if file_ext == '.pdf':
+            logger.info(f"[DEBUG OMR] Konvertujem PDF u slike...")
+            all_images = pdf_processor.pdf_to_images_from_bytes(content)
+            logger.info(f"[DEBUG OMR] PDF ima {len(all_images)} stranica")
+
+            if page_number > len(all_images):
+                raise HTTPException(400, f"PDF ima samo {len(all_images)} stranica")
+
+            img = all_images[page_number - 1]
+            logger.info(f"[DEBUG OMR] Izvučena stranica {page_number}, dimenzije: {img.shape}")
+        else:
+            logger.info(f"[DEBUG OMR] Učitavam običnu sliku...")
+            img = image_processor.load_image_from_bytes(content)
+            logger.info(f"[DEBUG OMR] Slika učitana, dimenzije: {img.shape}")
+
+        # Resize i preprocess - ISTO kao glavni endpoint
+        original_height, original_width = img.shape[:2]
+        logger.info(f"[DEBUG OMR] Original dimenzije: {original_width}x{original_height}")
+
+        img = image_processor.resize_to_width(img, TARGET_WIDTH)
+        new_height, new_width = img.shape[:2]
+        logger.info(f"[DEBUG OMR] Nakon resize: {new_width}x{new_height}")
+
+        img = image_processor.preprocess_full_document(img)
+        logger.info(f"[DEBUG OMR] Preprocess završen")
+
+        # Ucitaj template
+        template = load_template()
+        logger.info(f"[DEBUG OMR] Template učitan, total fields: {len(template['fields'])}")
+
+        # Izdvoj sve OMR polja
+        omr_rois = []
+
+        debug_dir = Config.BASE_DIR / "debug_rois"
+        if save_to_disk:
+            debug_dir.mkdir(exist_ok=True)
+            logger.info(f"[DEBUG OMR] Debug folder: {debug_dir}")
+
+        omr_fields_on_page = [f for f in template['fields']
+                              if f.get('type', '').startswith('OMR') and f.get('page', 1) == page_number]
+        logger.info(f"[DEBUG OMR] OMR polja na stranici {page_number}: {len(omr_fields_on_page)}")
+
+        for field in template['fields']:
+            field_type = field.get('type', '')
+            if not field_type.startswith('OMR'):
+                continue
+
+            # Proveri stranicu
+            field_page = field.get('page', 1)
+            if field_page != page_number:
+                continue
+
+            coords = field.get('coordinates', {})
+            omr_options = field.get('omr_options', [])
+            field_name = field.get('name', f"field_{field['id']}")
+
+            logger.info(f"[DEBUG OMR] === Procesiranje polja: {field_name} (ID: {field['id']}) ===")
+            logger.info(f"[DEBUG OMR] Template koordinate: x={coords.get('x')}, y={coords.get('y')}, w={coords.get('width')}, h={coords.get('height')}")
+            logger.info(f"[DEBUG OMR] Opcija: {len(omr_options)} opcija")
+
+            # Skaliraj koordinate - ISTI NAČIN kao glavni endpoint
+            x = int(coords.get('x', 0) * scale_factor)
+            y = int(coords.get('y', 0) * scale_factor)
+            w = int(coords.get('width', 100) * scale_factor)
+            h = int(coords.get('height', 50) * scale_factor)
+
+            logger.info(f"[DEBUG OMR] Nakon skaliranja ({scale_factor}x): x={x}, y={y}, w={w}, h={h}")
+
+            # KRITIČNO: Skaliraj i omr_options koordinate!
+            scaled_options = []
+            for opt in omr_options:
+                scaled_opt = opt.copy()
+                if 'x' in opt and 'y' in opt:
+                    scaled_opt['x'] = int(opt['x'] * scale_factor)
+                    scaled_opt['y'] = int(opt['y'] * scale_factor)
+                    scaled_opt['width'] = int(opt.get('width', 40) * scale_factor)
+                    scaled_opt['height'] = int(opt.get('height', 40) * scale_factor)
+                    logger.info(f"[DEBUG OMR] Skalirana opcija '{opt.get('label')}': ({opt['x']},{opt['y']}) -> ({scaled_opt['x']},{scaled_opt['y']})")
+                scaled_options.append(scaled_opt)
+
+            # Pretvori skalirane apsolutne koordinate u RELATIVNE
+            relative_options = []
+            for opt in scaled_options:
+                if 'x' in opt and 'y' in opt:
+                    rel_opt = opt.copy()
+                    rel_opt['x'] = opt['x'] - x  # Relativno u odnosu na ROI
+                    rel_opt['y'] = opt['y'] - y
+                    relative_options.append(rel_opt)
+                    logger.info(f"[DEBUG OMR] Relativna opcija '{opt.get('label')}': ({opt['x']},{opt['y']}) -> ({rel_opt['x']},{rel_opt['y']})")
+                else:
+                    relative_options.append(opt)
+
+            # Iseci ROI
+            try:
+                logger.info(f"[DEBUG OMR] Isecam ROI iz slike dimenzija {img.shape}...")
+                roi = image_processor.crop_roi(img, x, y, w, h)
+                logger.info(f"[DEBUG OMR] ROI izvučen, dimenzije: {roi.shape}")
+
+                # Konvertuj u base64
+                _, buffer = cv2.imencode('.png', roi)
+                roi_base64 = base64.b64encode(buffer).decode('utf-8')
+
+                # Pokreni OMR detekciju za debug info - koristi RELATIVNE koordinate!
+                logger.info(f"[DEBUG OMR] Pokrećem OMR detekciju sa {len(relative_options)} relativnih opcija...")
+                if field_type == 'OMR_MULTI':
+                    omr_result = omr_processor.detect_multi_select(roi, relative_options)
+                else:
+                    omr_result = omr_processor.detect_marked_option(roi, relative_options)
+                logger.info(f"[DEBUG OMR] OMR rezultat: value={omr_result.get('value')}, confidence={omr_result.get('confidence')}, method={omr_result.get('method')}")
+
+                # Sacuvaj na disk ako je zatrazeno
+                if save_to_disk:
+                    roi_path = debug_dir / f"{field_name}_p{page_number}.png"
+                    cv2.imwrite(str(roi_path), roi)
+                    logger.info(f"[DEBUG OMR] Sačuvan ROI: {roi_path}")
+
+                    # Sacuvaj i anotiranu verziju sa PRAVOUGAONICIMA krugova
+                    annotated = roi.copy()
+                    if len(annotated.shape) == 2:
+                        annotated = cv2.cvtColor(annotated, cv2.COLOR_GRAY2BGR)
+
+                    logger.info(f"[DEBUG OMR] Crtam anotacije za {len(relative_options)} opcija...")
+                    all_option_scores = omr_result.get('all_options', [])
+
+                    for i, opt in enumerate(relative_options):
+                        if 'x' in opt and 'y' in opt:
+                            # Nacrtaj pravougaonik oko kruga
+                            opt_x = int(opt['x'])
+                            opt_y = int(opt['y'])
+                            opt_w = int(opt.get('width', 40))
+                            opt_h = int(opt.get('height', 40))
+
+                            # Boja: Zelena ako je detektovan, crvena ako nije
+                            detected = False
+                            fill_ratio = 0
+                            if i < len(all_option_scores):
+                                detected = all_option_scores[i].get('detected', False) if field_type == 'OMR_MULTI' else (all_option_scores[i].get('label') == omr_result.get('label'))
+                                fill_ratio = all_option_scores[i].get('fill_ratio', 0)
+
+                            color = (0, 255, 0) if detected else (0, 0, 255)
+                            thickness = 3 if detected else 1
+
+                            cv2.rectangle(annotated, (opt_x, opt_y), (opt_x + opt_w, opt_y + opt_h), color, thickness)
+
+                            # Label i fill_ratio
+                            label_text = f"{opt.get('label', str(i+1))}: {fill_ratio:.2f}"
+                            cv2.putText(annotated, label_text,
+                                       (opt_x + 5, opt_y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+                            logger.info(f"[DEBUG OMR]   Opcija {opt.get('label')}: ({opt_x},{opt_y},{opt_w},{opt_h}) fill={fill_ratio:.3f} {'✓' if detected else '✗'}")
+
+                    annotated_path = debug_dir / f"{field_name}_p{page_number}_annotated.png"
+                    cv2.imwrite(str(annotated_path), annotated)
+                    logger.info(f"[DEBUG OMR] Sačuvana annotated verzija: {annotated_path}")
+
+                omr_rois.append({
+                    'field_id': field['id'],
+                    'field_name': field_name,
+                    'field_type': field_type,
+                    'coordinates': {'x': x, 'y': y, 'width': w, 'height': h},
+                    'template_coordinates': coords,  # Originalne iz template-a
+                    'scale_factor': scale_factor,
+                    'omr_options': scaled_options,  # POPRAVKA: Vrati skalirane opcije!
+                    'roi_size': {'width': roi.shape[1], 'height': roi.shape[0]},
+                    'roi_base64': f"data:image/png;base64,{roi_base64}",
+                    'detection_result': {
+                        'value': omr_result.get('value'),
+                        'label': omr_result.get('label'),
+                        'confidence': omr_result.get('confidence', 0),
+                        'method': omr_result.get('method'),
+                        'warning': omr_result.get('warning'),
+                        'all_options': omr_result.get('all_options', [])
+                    }
+                })
+                logger.info(f"[DEBUG OMR] Polje {field_name} uspešno procesir ano")
+
+            except Exception as e:
+                logger.error(f"[DEBUG OMR] GREŠKA pri izdvajanju ROI za {field_name}: {e}", exc_info=True)
+                omr_rois.append({
+                    'field_id': field['id'],
+                    'field_name': field_name,
+                    'error': str(e)
+                })
+
+        response = {
+            'success': True,
+            'page': page_number,
+            'image_size': {'width': new_width, 'height': new_height},
+            'target_width': TARGET_WIDTH,
+            'template_width': TEMPLATE_WIDTH,
+            'scale_factor': scale_factor,
+            'omr_fields_count': len(omr_rois),
+            'saved_to_disk': save_to_disk,
+            'debug_dir': str(debug_dir) if save_to_disk else None,
+            'omr_rois': omr_rois
+        }
+
+        logger.info(f"[DEBUG OMR] === DEBUG SESIJA ZAVRŠENA ===")
+        logger.info(f"[DEBUG OMR] Procesuirano {len(omr_rois)} OMR polja")
+
+        return response
+
+    except Exception as e:
+        logger.error(f"[DEBUG OMR] FATALNA GREŠKA: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # Za direktno pokretanje
