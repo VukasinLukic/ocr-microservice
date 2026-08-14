@@ -315,6 +315,27 @@
                 All</button>
         </div>
 
+        <!-- WS4: Alignment mode toggle - manuelne koordinate (default, nepromenjeno
+             ponašanje) naspram anchor-based poravnanja preko logo/naslov sidara.
+             Ne menja postojeću field/circle logiku, samo dodaje alternativni mod. -->
+        <div class="alignment-toggle"
+            style="margin-bottom: 16px; padding: 12px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid var(--border-color);">
+            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 8px;">Poravnanje polja</div>
+            <div style="display:flex; gap:5px;">
+                <button id="alignManualBtn" class="btn btn-primary" style="flex:1; padding:6px; font-size:0.75rem;"
+                    onclick="setAlignmentMode('manual')">Ručno</button>
+                <button id="alignAnchorBtn" class="btn btn-secondary" style="flex:1; padding:6px; font-size:0.75rem;"
+                    onclick="setAlignmentMode('anchor')">⚓ Anchor (beta)</button>
+            </div>
+            <button id="editAnchorsBtn" class="btn btn-secondary"
+                style="width:100%; margin-top:8px; padding:6px; font-size:0.75rem; display:none;"
+                onclick="toggleAnchorEditMode()">🎯 Uredi sidra</button>
+            <div id="anchorHint" style="display:none; font-size: 0.7rem; color: var(--text-secondary); margin-top: 6px; line-height: 1.4;">
+                Prevuci ljubičaste okvire preko stabilnih štampanih elemenata (npr. logo, naslov).
+                Koordinate + isečak slike se čuvaju pri "Save".
+            </div>
+        </div>
+
         <div class="field-list" id="fieldList">
             <!-- Fields will be generated here -->
         </div>
@@ -339,7 +360,7 @@
         let isResizing = false;
 
         // Circle Editing Mode (for OMR fields)
-        let editMode = 'field'; // 'field' or 'circles'
+        let editMode = 'field'; // 'field', 'circles', or 'anchor'
         let activeCircles = []; // Array of circle objects for current OMR field
         let activeCircleIndex = null; // Currently selected circle
         let isDraggingCircle = false;
@@ -347,6 +368,15 @@
         let dragStart = { x: 0, y: 0 };
         let activeRect = null;
         let resizeHandle = null;
+
+        // WS4: Anchor Editing Mode (alignment sidra - "logo"/"title") - potpuno
+        // odvojeno od field/circle logike iznad, koja ostaje netaknuta.
+        let alignmentMode = 'manual'; // 'manual' ili 'anchor' (template.document.alignment_mode)
+        let anchorEditMode = false; // da li je anchor-editing overlay trenutno aktivan
+        let activeAnchors = []; // [{label, x, y, width, height, image_data}] - max 2
+        let activeAnchorIndex = null;
+        let isDraggingAnchor = false;
+        let isResizingAnchor = false;
 
         const canvas = document.getElementById('editorCanvas');
         const ctx = canvas.getContext('2d');
@@ -370,12 +400,131 @@
                     });
                 }
 
+                initAnchors();
+                setAlignmentMode(alignmentMode); // sync dugmadi sa učitanim stanjem
+
                 renderFieldList();
             } catch (e) {
                 console.error("Failed to load template", e);
                 showStatus("Failed to load template", true);
             }
             showLoader(false);
+        }
+
+        // WS4: Anchor mode - inicijalizacija/toggle/edit
+        function initAnchors() {
+            if (!template.document) template.document = {};
+            alignmentMode = template.document.alignment_mode || 'manual';
+
+            const existing = template.document.anchor_elements || {};
+            // Default pozicije preuzete iz originalnog (do sada neiskorišćenog)
+            // document.anchor_elements.<label>.approximate_position u template-u.
+            const defaults = {
+                logo: { x: 50, y: 30, width: 150, height: 60 },
+                title: { x: 650, y: 30, width: 220, height: 60 },
+            };
+
+            activeAnchors = Object.keys(defaults).map(label => {
+                const e = existing[label];
+                if (e && e.reference_position) {
+                    // Nova šema (već sačuvana preko ovog editora)
+                    return {
+                        label,
+                        x: e.reference_position.x,
+                        y: e.reference_position.y,
+                        width: e.reference_width || defaults[label].width,
+                        height: e.reference_height || defaults[label].height,
+                        image_data: e.image_data || null,
+                    };
+                }
+                // Stara šema (approximate_position, samo tekst) ili ništa - koristi default
+                const approx = e && e.approximate_position;
+                return {
+                    label,
+                    x: approx ? approx.x : defaults[label].x,
+                    y: approx ? approx.y : defaults[label].y,
+                    width: defaults[label].width,
+                    height: defaults[label].height,
+                    image_data: null,
+                };
+            });
+        }
+
+        window.setAlignmentMode = function (mode) {
+            alignmentMode = mode;
+            if (template) {
+                if (!template.document) template.document = {};
+                template.document.alignment_mode = mode;
+            }
+
+            const manualBtn = document.getElementById('alignManualBtn');
+            const anchorBtn = document.getElementById('alignAnchorBtn');
+            const editBtn = document.getElementById('editAnchorsBtn');
+            const hint = document.getElementById('anchorHint');
+
+            manualBtn.className = mode === 'manual' ? 'btn btn-primary' : 'btn btn-secondary';
+            anchorBtn.className = mode === 'anchor' ? 'btn btn-primary' : 'btn btn-secondary';
+            editBtn.style.display = mode === 'anchor' ? 'block' : 'none';
+
+            if (mode !== 'anchor' && anchorEditMode) {
+                toggleAnchorEditMode(); // izađi iz anchor edit moda ako se prebacujemo na ručni
+            }
+            if (mode !== 'anchor') hint.style.display = 'none';
+
+            draw();
+        };
+
+        window.toggleAnchorEditMode = function () {
+            anchorEditMode = !anchorEditMode;
+
+            if (anchorEditMode) {
+                activeFieldId = null; // deselektuj polje da ne "krade" klikove
+                editMode = 'anchor';
+                activeAnchorIndex = 0;
+            } else {
+                editMode = 'field';
+                activeAnchorIndex = null;
+            }
+
+            const btn = document.getElementById('editAnchorsBtn');
+            btn.textContent = anchorEditMode ? '← Nazad na polja' : '🎯 Uredi sidra';
+            btn.className = anchorEditMode ? 'btn btn-primary' : 'btn btn-secondary';
+            document.getElementById('anchorHint').style.display = anchorEditMode ? 'block' : 'none';
+
+            renderFieldList();
+            draw();
+        };
+
+        function saveCurrentAnchors() {
+            // Iseca trenutnu referentnu sliku na svakom anchor pravougaoniku i
+            // čuva kao base64 PNG u template.document.anchor_elements - isti
+            // "auto-save pri izlasku/save-u" obrazac kao saveCurrentCircles().
+            if (!template) return;
+            if (!template.document) template.document = {};
+            if (!image || !image.src) {
+                console.warn('[ANCHOR] Nema učitane referentne slike - anchor podaci se ne menjaju');
+                return;
+            }
+
+            const anchorData = {};
+            activeAnchors.forEach(anchor => {
+                const off = document.createElement('canvas');
+                off.width = Math.max(1, Math.round(anchor.width));
+                off.height = Math.max(1, Math.round(anchor.height));
+                const octx = off.getContext('2d');
+                octx.drawImage(image, anchor.x, anchor.y, anchor.width, anchor.height,
+                    0, 0, off.width, off.height);
+
+                anchorData[anchor.label] = {
+                    reference_position: { x: Math.round(anchor.x), y: Math.round(anchor.y) },
+                    reference_width: off.width,
+                    reference_height: off.height,
+                    image_data: off.toDataURL('image/png'),
+                };
+            });
+
+            template.document.anchor_elements = anchorData;
+            console.log('[ANCHOR] Sačuvano', Object.keys(anchorData).length, 'sidara');
         }
 
         // Image Handling (with PDF support)
@@ -577,6 +726,31 @@
                     }
                 });
             }
+
+            // WS4: Draw Anchors (alignment mode)
+            if (editMode === 'anchor') {
+                activeAnchors.forEach((anchor, idx) => {
+                    const isActiveAnchor = idx === activeAnchorIndex;
+                    const { x, y, width, height } = anchor;
+
+                    ctx.beginPath();
+                    ctx.rect(x, y, width, height);
+                    ctx.fillStyle = isActiveAnchor ? "rgba(168, 85, 247, 0.35)" : "rgba(168, 85, 247, 0.15)";
+                    ctx.fill();
+                    ctx.lineWidth = isActiveAnchor ? 3 : 2;
+                    ctx.strokeStyle = "#a855f7";
+                    ctx.setLineDash([6, 4]);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+
+                    ctx.fillStyle = "#a855f7";
+                    ctx.font = "bold 13px Inter";
+                    ctx.textAlign = "left";
+                    ctx.fillText(`⚓ ${anchor.label}`, x + 4, y - 6);
+
+                    if (isActiveAnchor) drawHandles(x, y, width, height);
+                });
+            }
         }
 
         function drawHandles(x, y, w, h) {
@@ -591,6 +765,34 @@
         // MOUSE DOWN - Start drag/resize
         canvas.addEventListener('mousedown', (e) => {
             const pos = getMousePos(e);
+
+            // WS4 ANCHOR MODE: Check if clicking on anchor rectangles
+            if (editMode === 'anchor' && activeAnchors.length > 0) {
+                if (activeAnchorIndex !== null) {
+                    const activeAnchor = activeAnchors[activeAnchorIndex];
+                    const handle = getResizeHandle(pos.x, pos.y, activeAnchor);
+                    if (handle) {
+                        isResizingAnchor = true;
+                        resizeHandle = handle;
+                        dragStart = { x: pos.x, y: pos.y };
+                        activeRect = { ...activeAnchor };
+                        return;
+                    }
+                }
+
+                for (let idx = activeAnchors.length - 1; idx >= 0; idx--) {
+                    const anchor = activeAnchors[idx];
+                    if (isPointInRect(pos.x, pos.y, anchor)) {
+                        activeAnchorIndex = idx;
+                        isDraggingAnchor = true;
+                        dragStart = { x: pos.x, y: pos.y };
+                        activeRect = { ...anchor };
+                        draw();
+                        return;
+                    }
+                }
+                return; // u anchor modu ne propuštamo klik dalje na polja
+            }
 
             // CIRCLE MODE: Check if clicking on circles
             if (editMode === 'circles' && activeCircles.length > 0) {
@@ -661,6 +863,58 @@
 
         canvas.addEventListener('mousemove', (e) => {
             const pos = getMousePos(e);
+
+            // WS4 ANCHOR RESIZING
+            if (isResizingAnchor && activeAnchorIndex !== null) {
+                const anchor = activeAnchors[activeAnchorIndex];
+                const dx = pos.x - dragStart.x;
+                const dy = pos.y - dragStart.y;
+
+                if (resizeHandle === 'nw') {
+                    anchor.x = Math.round(activeRect.x + dx);
+                    anchor.y = Math.round(activeRect.y + dy);
+                    anchor.width = Math.max(20, activeRect.width - dx);
+                    anchor.height = Math.max(20, activeRect.height - dy);
+                } else if (resizeHandle === 'ne') {
+                    anchor.y = Math.round(activeRect.y + dy);
+                    anchor.width = Math.max(20, activeRect.width + dx);
+                    anchor.height = Math.max(20, activeRect.height - dy);
+                } else if (resizeHandle === 'se') {
+                    anchor.width = Math.max(20, activeRect.width + dx);
+                    anchor.height = Math.max(20, activeRect.height + dy);
+                } else if (resizeHandle === 'sw') {
+                    anchor.x = Math.round(activeRect.x + dx);
+                    anchor.width = Math.max(20, activeRect.width - dx);
+                    anchor.height = Math.max(20, activeRect.height + dy);
+                }
+                draw();
+                return;
+            }
+
+            // WS4 ANCHOR DRAGGING
+            if (isDraggingAnchor && activeAnchorIndex !== null) {
+                const anchor = activeAnchors[activeAnchorIndex];
+                const dx = pos.x - dragStart.x;
+                const dy = pos.y - dragStart.y;
+
+                anchor.x = Math.round(activeRect.x + dx);
+                anchor.y = Math.round(activeRect.y + dy);
+                draw();
+                return;
+            }
+
+            // Cursor for WS4 ANCHOR MODE
+            if (editMode === 'anchor' && activeAnchorIndex !== null && !isDraggingAnchor && !isResizingAnchor) {
+                const anchor = activeAnchors[activeAnchorIndex];
+                const handle = getResizeHandle(pos.x, pos.y, anchor);
+                if (handle) {
+                    canvas.style.cursor = handle + '-resize';
+                    return;
+                } else if (isPointInRect(pos.x, pos.y, anchor)) {
+                    canvas.style.cursor = 'move';
+                    return;
+                }
+            }
 
             // CIRCLE RESIZING
             if (isResizingCircle && activeCircleIndex !== null) {
@@ -763,7 +1017,7 @@
             }
         });
 
-        // Keyboard Navigation for Circles
+        // Keyboard Navigation for Circles (and WS4 Anchors)
         window.addEventListener('keydown', (e) => {
             if (editMode === 'circles' && activeCircles.length > 0) {
                 if (e.key === 'ArrowDown') {
@@ -777,10 +1031,46 @@
                     updateCircleInfo();
                     draw();
                 }
+            } else if (editMode === 'anchor' && activeAnchors.length > 0) {
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    activeAnchorIndex = (activeAnchorIndex + 1) % activeAnchors.length;
+                    draw();
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    activeAnchorIndex = (activeAnchorIndex - 1 + activeAnchors.length) % activeAnchors.length;
+                    draw();
+                }
             }
         });
 
         window.addEventListener('mouseup', () => {
+            // WS4 anchor resizing end
+            if (isResizingAnchor) {
+                isResizingAnchor = false;
+                if (activeAnchorIndex !== null) {
+                    const anchor = activeAnchors[activeAnchorIndex];
+                    anchor.x = Math.round(anchor.x);
+                    anchor.y = Math.round(anchor.y);
+                    anchor.width = Math.round(anchor.width);
+                    anchor.height = Math.round(anchor.height);
+                }
+                draw();
+                return;
+            }
+
+            // WS4 anchor dragging end
+            if (isDraggingAnchor) {
+                isDraggingAnchor = false;
+                if (activeAnchorIndex !== null) {
+                    const anchor = activeAnchors[activeAnchorIndex];
+                    anchor.x = Math.round(anchor.x);
+                    anchor.y = Math.round(anchor.y);
+                }
+                draw();
+                return;
+            }
+
             // Circle resizing end
             if (isResizingCircle) {
                 isResizingCircle = false;
@@ -912,6 +1202,13 @@
         }
 
         function setActiveField(id) {
+            // WS4: ako je anchor edit mod aktivan (npr. klik na polje u sidebaru
+            // dok se uređuju sidra), čisto izađi iz njega da UI dugmad ne ostanu
+            // neusklađena sa stvarnim editMode-om.
+            if (anchorEditMode) {
+                toggleAnchorEditMode();
+            }
+
             // VAŽNO: Sačuvaj koordinate trenutnog polja PRE nego što pređeš na novo!
             if (activeFieldId && activeFieldId !== id) {
                 saveCurrentCircles();
@@ -1082,6 +1379,7 @@
 
             // VAŽNO: AUTO-SAVE trenutnih krugova pre nego što sačuvamo template!
             saveCurrentCircles();
+            saveCurrentAnchors(); // WS4 - snimi anchor pravougaonike (ako su menjani)
 
             showLoader(true);
 

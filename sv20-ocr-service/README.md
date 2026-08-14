@@ -69,8 +69,17 @@ sv20-ocr-service/
 ├── logs/                        # Log fajlovi
 │
 └── tests/
-    └── sample_images/           # Test slike
+    └── test_*.py                # pytest testovi (validators, OMR logika)
 ```
+
+> **VAŽNO:** `templates/sv20_template.json` je **jedini i zvaničan izvor** definicije
+> polja (koordinate, tip, validacija, OMR opcije) za ovaj servis - ne MySQL baza.
+> `config.py` sadrži `DB_CONFIG` kao ostatak ranijeg plana da se polja čitaju iz
+> `tippolja` tabele, ali ta konekcija nigde nije povezana/korišćena. Ako Java/DB
+> strana promeni ili doda polje u `tippolja`, OCR servis to **neće videti** dok se
+> ista izmena ručno ne napravi i u `sv20_template.json` (preporučeno preko
+> Template Editora na `/editor`, ne ručnim uređivanjem JSON-a). Dva izvora istine
+> za isti podatak - ovo je jedini koji ovaj servis stvarno čita.
 
 ## Instalacija
 

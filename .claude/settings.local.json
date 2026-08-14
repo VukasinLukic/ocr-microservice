@@ -30,7 +30,10 @@
       "Bash(C:/Users/INSOMNIA/AppData/Local/Programs/Python/Python313/python.exe)",
       "Bash(C:/Users/INSOMNIA/AppData/Local/Programs/Python/Python313/python.exe:*)",
       "Bash(timeout /t 3)",
-      "Bash(iconv:*)"
+      "Bash(iconv:*)",
+      "Bash(python -c \"import pytest; print\\('pytest ok'\\)\")",
+      "PowerShell(py -3 --version 2>&1)",
+      "PowerShell(py --version 2>&1)"
     ]
   }
 }

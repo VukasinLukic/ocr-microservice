@@ -120,51 +120,71 @@ class FieldValidator:
         # Ako nema match, vrati original
         return value
 
-    @staticmethod
-    def clean_jmbg_ocr(value: str, auto_correct_checksum: bool = True) -> str:
-        """
-        SMART CLEANING za JMBG.
+    # Standardne OCR zabune cifara (vizuelno slična, česta pogrešna čitanja).
+    # Koristi se SAMO za predlog ispravke JMBG-a, nikad za tihu izmenu vrednosti.
+    _DIGIT_CONFUSIONS: Dict[str, List[str]] = {
+        '0': ['8', '6', '9'],
+        '1': ['7'],
+        '2': ['7'],
+        '3': ['8'],
+        '4': ['9'],
+        '5': ['6', '8'],
+        '6': ['5', '8', '0'],
+        '7': ['1', '2'],
+        '8': ['0', '3', '5', '6'],
+        '9': ['4', '0'],
+    }
 
-        Args:
-            value: OCR tekst (može imati razmake, crte)
-            auto_correct_checksum: Da li automatski korigovati kontrolnu cifru
+    @staticmethod
+    def clean_jmbg_ocr(value: str) -> str:
+        """
+        Čisti OCR tekst JMBG-a - uklanja sve što nije cifra.
+
+        VAŽNO: ovo NIKAD ne menja same cifre (nema "auto-correct" checksuma).
+        Kontrolna cifra postoji da OTKRIJE grešku u OCR čitanju, ne da bude
+        dugme za tihu ispravku - to bi sakrilo pravu OCR grešku iza lažnog
+        "is_valid=True".
 
         Returns:
-            Očišćeni JMBG (13 cifara)
+            Očišćeni JMBG (samo cifre, dužina može biti != 13 ako OCR nije
+            sve pročitao)
         """
-        # Ukloni sve što nije cifra
-        digits = re.sub(r'\D', '', value)
-
-        if len(digits) != 13:
-            return digits
-
-        if auto_correct_checksum:
-            # Izračunaj tačnu kontrolnu cifru
-            weights = [7, 6, 5, 4, 3, 2, 7, 6, 5, 4, 3, 2]
-            total = sum(int(digits[i]) * weights[i] for i in range(12))
-            remainder = total % 11
-
-            if remainder == 0:
-                expected_check = 0
-            elif remainder == 1:
-                # Invalidan JMBG - ne može se korektovati
-                logger.warning(f"[JMBG CLEAN] JMBG sa ostatkom 1 je invalidan: {digits}")
-                return digits
-            else:
-                expected_check = 11 - remainder
-
-            # Zameni kontrolnu cifru
-            corrected = digits[:12] + str(expected_check)
-
-            if corrected != digits:
-                logger.info(f"[JMBG CLEAN] AUTO-CORRECT: {digits} -> {corrected}")
-
-            return corrected
-
-        return digits
+        return re.sub(r'\D', '', value)
 
     @classmethod
-    def validate_jmbg(cls, value: str) -> Tuple[bool, str, Optional[str]]:
+    def suggest_jmbg_correction(cls, digits: str) -> Optional[str]:
+        """
+        Pokušava da pronađe JEDNOZNAČAN predlog ispravke JMBG-a sa neispravnom
+        kontrolnom cifrom, menjajući TAČNO JEDNU cifru kroz uobičajene OCR
+        zabune (npr. 0<->8, 1<->7).
+
+        Ovo se NIKAD ne primenjuje automatski na `validated_value` - samo se
+        vraća kao predlog za ručnu proveru operatera (Java/GUI strana odlučuje
+        da li i kako da ga prikaže).
+
+        Ako promena bilo koje od 13 pozicija kroz njene uobičajene zabune daje
+        VIŠE OD JEDNOG validnog kandidata, predlog je dvosmislen i vraćamo
+        None (bolje nijedan predlog nego pogrešan).
+
+        Returns:
+            Predloženi ispravan JMBG (13 cifara) ili None ako nema jednoznačnog predloga.
+        """
+        if len(digits) != 13 or not digits.isdigit():
+            return None
+
+        candidates = set()
+        for i, ch in enumerate(digits):
+            for alt in cls._DIGIT_CONFUSIONS.get(ch, []):
+                candidate = digits[:i] + alt + digits[i + 1:]
+                if cls._validate_jmbg_checksum(candidate):
+                    candidates.add(candidate)
+
+        if len(candidates) == 1:
+            return candidates.pop()
+        return None
+
+    @classmethod
+    def validate_jmbg(cls, value: str) -> Tuple[bool, str, Optional[str], Optional[str]]:
         """
         Validira JMBG (Jedinstveni maticni broj gradana).
 
@@ -176,24 +196,35 @@ class FieldValidator:
         - BBB: jedinstveni broj (000-499 muski, 500-999 zenski)
         - K: kontrolna cifra (modul 11)
 
-        Returns:
-            (is_valid, cleaned_value, error_message)
-        """
-        # SMART CLEANING - automatski koriguje kontrolnu cifru ako je OCR promašio
-        cleaned = cls.clean_jmbg_ocr(value, auto_correct_checksum=True)
+        VAŽNO: kontrolna cifra se koristi SAMO da validira, nikad da tiho
+        izmeni OCR pročitanu vrednost. Ako čeksuma ne prolazi, is_valid je
+        False i cleaned_value ostaje TAČNO ono što je OCR pročitao.
 
-        # Proveri da li ima tačno 13 cifara
+        Returns:
+            (is_valid, cleaned_value, error_message, suggested_value)
+            suggested_value je opcioni jednoznačan predlog ispravke (vidi
+            suggest_jmbg_correction) - nikad se sam ne primenjuje.
+        """
+        cleaned = cls.clean_jmbg_ocr(value)
+
         if len(cleaned) != cls.JMBG_LENGTH:
-            return False, cleaned, f"JMBG mora imati {cls.JMBG_LENGTH} cifara, ima {len(cleaned)}"
+            return False, cleaned, f"JMBG mora imati {cls.JMBG_LENGTH} cifara, ima {len(cleaned)}", None
 
         if not cleaned.isdigit():
-            return False, cleaned, "JMBG mora sadržati samo cifre"
+            return False, cleaned, "JMBG mora sadržati samo cifre", None
 
-        # Validacija kontrolne cifre (posle auto-korekcije trebalo bi da bude OK)
         if cls._validate_jmbg_checksum(cleaned):
-            return True, cleaned, None
-        else:
-            return False, cleaned, "Neispravna kontrolna cifra JMBG-a"
+            return True, cleaned, None, None
+
+        suggestion = cls.suggest_jmbg_correction(cleaned)
+        if suggestion:
+            return (
+                False,
+                cleaned,
+                "Neispravna kontrolna cifra JMBG-a (postoji mogući predlog ispravke - proveriti ručno)",
+                suggestion,
+            )
+        return False, cleaned, "Neispravna kontrolna cifra JMBG-a", None
 
     @staticmethod
     def _validate_jmbg_checksum(jmbg: str) -> bool:
@@ -479,6 +510,7 @@ class FieldValidator:
         field_name = field_config.get('name', '')
         required = field_config.get('required', False)
         validation = field_config.get('validation', {})
+        suggested_value = None
 
         if field_type == 'TEXT':
             is_valid, cleaned, error = cls.validate_text(
@@ -491,7 +523,7 @@ class FieldValidator:
         elif field_type == 'NUMERIC':
             # Specijalan slucaj za JMBG
             if validation.get('length') == 13 or 'jmbg' in field_name.lower():
-                is_valid, cleaned, error = cls.validate_jmbg(value)
+                is_valid, cleaned, error, suggested_value = cls.validate_jmbg(value)
             # Specijalan slucaj za godine (godina_rodjenja, godina_upisa, itd.)
             elif 'godina' in field_name.lower() and 'studija' not in field_name.lower():
                 # SMART CLEANING za godine: "2925" -> "2025", "12006" -> "2006"
@@ -538,7 +570,8 @@ class FieldValidator:
             'original_value': value,
             'cleaned_value': cleaned,
             'error': error,
-            'field_type': field_type
+            'field_type': field_type,
+            'suggested_value': suggested_value
         }
 
 
@@ -627,8 +660,8 @@ def test_validators():
 
     # Test JMBG
     valid_jmbg = "0101998710029"  # Primer - mozda nije validan checksum
-    is_valid, cleaned, error = FieldValidator.validate_jmbg(valid_jmbg)
-    print(f"JMBG '{valid_jmbg}': valid={is_valid}, cleaned={cleaned}, error={error}")
+    is_valid, cleaned, error, suggested = FieldValidator.validate_jmbg(valid_jmbg)
+    print(f"JMBG '{valid_jmbg}': valid={is_valid}, cleaned={cleaned}, error={error}, suggested={suggested}")
 
     # Test indeksa
     test_index = "2023/0342"

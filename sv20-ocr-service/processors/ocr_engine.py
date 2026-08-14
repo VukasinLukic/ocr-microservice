@@ -15,8 +15,22 @@ logger = logging.getLogger(__name__)
 class OCREngine:
     """
     EasyOCR wrapper sa podrskom za AMD DirectML i offline rad.
-    Ucitava srpsku cirilicu i latinicu istovremeno.
+
+    Drzi DVA odvojena EasyOCR readera (cirilica i latinica) jer ih EasyOCR ne
+    dozvoljava u istom Reader-u ("Cyrillic is only compatible with English"
+    greska - modeli za cirilicu i latinicu koriste nekompatibilne skupove
+    karaktera). Za tekstualna polja se OBA readera pokrecu nad istim ROI-jem
+    i zadrzava se rezultat sa visim confidence-om (vidi recognize_single_field) -
+    prethodno je servis koristio SAMO cirilicni skup jezika i latinica se
+    nikad nije stvarno citala, iako je config/README tvrdio suprotno.
     """
+
+    # Cirilicni EasyOCR jezicki skup - "Fix for Cyrillic is only compatible
+    # with English" - EasyOCR zahteva bas ovaj skup pratecih jezika da bi
+    # ucitao cirilicni model (ne moze se prosto dodati rs_latin ovde).
+    LANGUAGES_CYRILLIC = ["ru", "rs_cyrillic", "be", "bg", "uk", "mn", "en"]
+    # Latinicni jezicki skup - rs_latin + en (kompatibilni skup karaktera).
+    LANGUAGES_LATIN = ["rs_latin", "en"]
 
     def __init__(self,
                  languages: List[str] = None,
@@ -24,63 +38,81 @@ class OCREngine:
                  use_gpu: bool = True,
                  gpu_backend: str = "directml"):
         """
-        Inicijalizacija OCR engine-a.
+        Inicijalizacija OCR engine-a. Uvek ucitava OBA jezicka skupa
+        (cirilica + latinica) - `languages` parametar se cuva samo
+        informativno (npr. za logove), ne utice na to koji se modeli
+        ucitavaju, jer EasyOCR-ova ogranicenja kompatibilnosti jezika ionako
+        diktiraju tacno ova dva skupa.
 
         Args:
-            languages: Lista jezika za prepoznavanje (default: ['rs_cyrillic', 'rs_latin'])
+            languages: Informativna lista (zadrzano za kompatibilnost API-ja)
             model_storage_directory: Putanja do offline modela
             use_gpu: Da li koristiti GPU
             gpu_backend: "directml" za AMD, "cuda" za NVIDIA
         """
-        if languages is None:
-            languages = ['rs_cyrillic', 'rs_latin', 'en']
-
-        # Fix for "Cyrillic is only compatible with English" error
-        # EasyOCR requires a specific set of languages when using Cyrillic models
-        # We must STRICTLY follow the compatible list and cannot add rs_latin
-        if 'rs_cyrillic' in languages:
-             self.languages = ["ru", "rs_cyrillic", "be", "bg", "uk", "mn", "en"]
-        else:
-            self.languages = languages
+        self.languages = languages or (self.LANGUAGES_CYRILLIC + ["rs_latin"])
         self.model_dir = model_storage_directory
         self.use_gpu = use_gpu
         self.gpu_backend = gpu_backend
-        self.reader = None
+        self.reader_cyrillic = None
+        self.reader_latin = None
         self._gpu_available = False
         self._actual_backend = "cpu"
 
-        self._initialize_reader()
+        self._initialize_readers()
 
     def _detect_hardware(self) -> Tuple[bool, str]:
         """
-        Automatska detekcija dostupnog hardvera.
+        Automatska detekcija hardvera koji EasyOCR STVARNO koristi.
+
+        VAŽNO (ANALIZA-OCR-SERVISA.md 4.3): EasyOCR interno koristi PyTorch,
+        NE onnxruntime - proveravanje `onnxruntime` DirectML providera ovde
+        je ranije davalo potpuno pogrešnu sliku (servis je "video" AMD GPU
+        preko onnxruntime-a, ali je EasyOCR i dalje tiho radio na CPU-u jer
+        `torch.cuda.is_available()` na AMD/Windows-u bez ROCm-a vraća False).
+        Sad se proverava ono što EasyOCR stvarno koristi.
+
+        AMD GPU akceleracija bi zahtevala `torch-directml` paket + eksplicitno
+        stavljanje tenzora na `dml` device u pozivnom kodu (EasyOCR ne
+        podržava proizvoljan torch device "od kutije") - nije urađeno u ovom
+        krugu jer je rizično/nepotvrđeno, a Microsoft-ov DirectML repo je u
+        "maintenance mode" (vidi ANALIZA-OCR-SERVISA.md 4.3 za detalje i
+        alternative poput OnnxTR/docTR koje stvarno prolaze kroz onnxruntime).
 
         Returns:
             (gpu_available, backend_name)
         """
+        if not self.use_gpu:
+            logger.info("GPU isključen konfiguracijom, koristim CPU")
+            return False, "cpu"
+
         try:
-            import onnxruntime as ort
-            providers = ort.get_available_providers()
-            logger.info(f"Dostupni ONNX provideri: {providers}")
-
-            if self.use_gpu:
-                if 'DmlExecutionProvider' in providers:
-                    logger.info("Koristi se AMD DirectML GPU akceleracija")
-                    return True, "directml"
-                elif 'CUDAExecutionProvider' in providers:
-                    logger.info("Koristi se NVIDIA CUDA GPU akceleracija")
-                    return True, "cuda"
+            import torch
+            if torch.cuda.is_available():
+                logger.info("Koristi se NVIDIA CUDA GPU akceleracija")
+                return True, "cuda"
         except ImportError:
-            logger.warning("onnxruntime nije instaliran, koristim CPU")
+            pass
         except Exception as e:
-            logger.warning(f"Greska pri detekciji GPU: {e}")
+            logger.warning(f"Greska pri proveri torch.cuda: {e}")
 
-        logger.info("Koristi se CPU")
+        try:
+            import torch_directml  # noqa: F401
+            logger.info("Koristi se AMD/Intel DirectML GPU akceleracija (torch_directml)")
+            return True, "directml"
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.warning(f"Greska pri proveri torch_directml: {e}")
+
+        logger.info("Nijedan GPU backend nije dostupan za EasyOCR (torch je CPU-only build "
+                   "i/ili torch_directml nije instaliran) - koristi se CPU")
         return False, "cpu"
 
-    def _initialize_reader(self):
+    def _initialize_readers(self):
         """
-        Inicijalizuje EasyOCR reader sa odgovarajucim backend-om.
+        Inicijalizuje OBA EasyOCR readera (cirilica i latinica) sa
+        odgovarajucim backend-om.
         """
         try:
             import easyocr
@@ -91,27 +123,33 @@ class OCREngine:
         self._gpu_available = gpu_available
         self._actual_backend = backend
 
-        try:
-            logger.info(f"Inicijalizujem EasyOCR: jezici={self.languages}, GPU={gpu_available}")
+        self.reader_cyrillic = self._build_reader(easyocr, self.LANGUAGES_CYRILLIC, gpu_available)
+        self.reader_latin = self._build_reader(easyocr, self.LANGUAGES_LATIN, gpu_available)
 
-            self.reader = easyocr.Reader(
-                self.languages,
+        logger.info(f"OCR Engine inicijalizovan uspesno: cirilica={self.LANGUAGES_CYRILLIC}, "
+                   f"latinica={self.LANGUAGES_LATIN}, GPU={self._gpu_available}, backend={self._actual_backend}")
+
+    def _build_reader(self, easyocr_module, languages: List[str], gpu_available: bool):
+        """
+        Gradi jedan EasyOCR Reader za dati jezicki skup, sa fallback-om na
+        CPU ako GPU inicijalizacija ne uspe.
+        """
+        try:
+            logger.info(f"Inicijalizujem EasyOCR reader: jezici={languages}, GPU={gpu_available}")
+            return easyocr_module.Reader(
+                languages,
                 gpu=gpu_available,
                 model_storage_directory=self.model_dir,
                 download_enabled=True,  # Dozvoli download ako modeli ne postoje
                 verbose=False
             )
-
-            logger.info(f"OCR Engine inicijalizovan uspesno: "
-                       f"jezici={self.languages}, GPU={gpu_available}, backend={backend}")
-
         except Exception as e:
-            logger.error(f"Greska pri inicijalizaciji OCR sa GPU: {e}")
+            logger.error(f"Greska pri inicijalizaciji {languages} sa GPU: {e}")
             logger.info("Pokusavam fallback na CPU...")
 
             try:
-                self.reader = easyocr.Reader(
-                    self.languages,
+                reader = easyocr_module.Reader(
+                    languages,
                     gpu=False,
                     model_storage_directory=self.model_dir,
                     download_enabled=True,
@@ -119,10 +157,11 @@ class OCREngine:
                 )
                 self._gpu_available = False
                 self._actual_backend = "cpu"
-                logger.info("OCR Engine inicijalizovan na CPU")
+                logger.info(f"Reader {languages} inicijalizovan na CPU")
+                return reader
             except Exception as e2:
-                logger.error(f"Fallback na CPU nije uspeo: {e2}")
-                raise RuntimeError(f"Ne mogu inicijalizovati OCR engine: {e2}")
+                logger.error(f"Fallback na CPU nije uspeo za {languages}: {e2}")
+                raise RuntimeError(f"Ne mogu inicijalizovati OCR reader {languages}: {e2}")
 
     def recognize(self, image: np.ndarray,
                   detail: int = 1,
@@ -131,7 +170,11 @@ class OCREngine:
                   text_threshold: float = 0.7,
                   low_text: float = 0.4) -> List[Dict]:
         """
-        Izvrsava OCR na datoj slici.
+        Izvrsava OCR na datoj slici preko cirilicnog readera (primarno pismo
+        stampanih delova ŠV-20 obrasca). Koristi se uglavnom za "sirovi",
+        pregledni OCR celog dokumenta (/api/ocr/process-raw, debug) - za
+        pojedinacna polja gde pismo realno varira koristi
+        recognize_single_field, koja pokrece OBA readera.
 
         Args:
             image: NumPy array slike (grayscale ili BGR)
@@ -144,11 +187,11 @@ class OCREngine:
         Returns:
             Lista recnika sa kljucevima: text, confidence, bbox
         """
-        if self.reader is None:
+        if self.reader_cyrillic is None:
             raise RuntimeError("OCR Engine nije inicijalizovan")
 
         try:
-            results = self.reader.readtext(
+            results = self.reader_cyrillic.readtext(
                 image,
                 detail=detail,
                 paragraph=paragraph,
@@ -180,10 +223,41 @@ class OCREngine:
             logger.error(f"Greska pri OCR prepoznavanju: {e}")
             return []
 
+    def _recognize_with_reader(self, reader, image: np.ndarray,
+                                allowlist: str = None) -> Tuple[str, float]:
+        """Pokrece jedan konkretan EasyOCR reader nad ROI-jem jednog polja."""
+        try:
+            if allowlist:
+                results = reader.readtext(image, detail=1, paragraph=False, allowlist=allowlist)
+            else:
+                results = reader.readtext(image, detail=1, paragraph=False)
+
+            if not results:
+                return "", 0.0
+
+            texts = [text for _, text, _ in results]
+            confidences = [confidence for _, _, confidence in results]
+
+            combined_text = " ".join(texts)
+            avg_confidence = sum(confidences) / len(confidences) if confidences else 0.0
+
+            return combined_text.strip(), float(avg_confidence)
+
+        except Exception as e:
+            logger.error(f"Greska u _recognize_with_reader: {e}")
+            return "", 0.0
+
     def recognize_single_field(self, image: np.ndarray,
                                allowlist: str = None) -> Tuple[str, float]:
         """
         OCR za jedno polje - vraca spojeni tekst i prosecan confidence.
+
+        Pokrece OBA readera (cirilica + latinica) nad istim ROI-jem i vraca
+        rezultat sa VISIM prosecnim confidence-om (opcija B iz WS3 -
+        vidi ANALIZA-OCR-SERVISA.md 4.2). Izuzetak: kad je allowlist cisto
+        numericki (JMBG, godine i sl.), pismo nije relevantno za cifre pa se
+        koristi samo cirilicni reader (vec sadrzi 'en') da se ne duplira
+        nepotreban trosak vremena.
 
         Args:
             image: Slika polja
@@ -192,39 +266,18 @@ class OCREngine:
         Returns:
             (tekst, confidence)
         """
-        try:
-            if allowlist:
-                results = self.reader.readtext(
-                    image,
-                    detail=1,
-                    paragraph=False,
-                    allowlist=allowlist
-                )
-            else:
-                results = self.reader.readtext(
-                    image,
-                    detail=1,
-                    paragraph=False
-                )
+        if allowlist and set(allowlist) <= set('0123456789'):
+            return self._recognize_with_reader(self.reader_cyrillic, image, allowlist)
 
-            if not results:
-                return "", 0.0
+        text_cyrillic, conf_cyrillic = self._recognize_with_reader(self.reader_cyrillic, image, allowlist)
+        text_latin, conf_latin = self._recognize_with_reader(self.reader_latin, image, allowlist)
 
-            texts = []
-            confidences = []
+        if conf_latin > conf_cyrillic:
+            logger.info(f"[DUAL-SCRIPT] Latinica pobedila: '{text_latin}' (conf={conf_latin:.2f}) "
+                       f"> cirilica '{text_cyrillic}' (conf={conf_cyrillic:.2f})")
+            return text_latin, conf_latin
 
-            for bbox, text, confidence in results:
-                texts.append(text)
-                confidences.append(confidence)
-
-            combined_text = " ".join(texts)
-            avg_confidence = sum(confidences) / len(confidences) if confidences else 0.0
-
-            return combined_text.strip(), float(avg_confidence)
-
-        except Exception as e:
-            logger.error(f"Greska u recognize_single_field: {e}")
-            return "", 0.0
+        return text_cyrillic, conf_cyrillic
 
     def recognize_digits_only(self, image: np.ndarray) -> Tuple[str, float]:
         """
@@ -307,11 +360,13 @@ class OCREngine:
     def get_info(self) -> Dict:
         """Vraca informacije o OCR engine-u."""
         return {
+            'languages_cyrillic': self.LANGUAGES_CYRILLIC,
+            'languages_latin': self.LANGUAGES_LATIN,
             'languages': self.languages,
             'gpu_enabled': self._gpu_available,
             'backend': self._actual_backend,
             'model_directory': str(self.model_dir) if self.model_dir else None,
-            'initialized': self.reader is not None
+            'initialized': self.reader_cyrillic is not None and self.reader_latin is not None
         }
 
 

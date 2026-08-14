@@ -34,6 +34,16 @@ class Config:
     USE_GPU = True
     GPU_BACKEND = "directml"  # AMD Radeon
 
+    # WS6 - TrOCR rukom pisan tekst (EKSPERIMENTALNO, videti
+    # processors/handwriting_ocr.py i ANALIZA-OCR-SERVISA.md). Default False:
+    # kad je isključeno, `transformers` paket se čak ni ne pokušava importovati
+    # niti se model preuzima - servis radi identično kao pre WS6.
+    ENABLE_HANDWRITING_TROCR = False
+    # Ako je EasyOCR confidence za TEXT/ALPHANUMERIC polje ISPOD ovog praga,
+    # I ENABLE_HANDWRITING_TROCR je uključen, probaj TrOCR kao drugo mišljenje
+    # (pored polja eksplicitno označenih "handwriting": true u template-u).
+    HANDWRITING_FALLBACK_CONFIDENCE = 0.5
+
     # Image Processing
     TARGET_DPI = 300
     BINARIZATION_THRESHOLD = 127
@@ -55,22 +65,41 @@ class Config:
     @classmethod
     def detect_gpu(cls) -> str:
         """
-        Automatska detekcija GPU-a.
+        Detektuje backend koji STVARNO ubrzava OCR.
+
+        VAŽNO (ANALIZA-OCR-SERVISA.md 4.3): EasyOCR interno koristi PyTorch,
+        NE onnxruntime. Ranija verzija ove funkcije proveravala je
+        `onnxruntime.get_available_providers()` za DirectML - to je bio
+        potpuno nepovezan signal od onoga što EasyOCR stvarno koristi za
+        inferencu, pa je servis lagao da radi na AMD DirectML GPU-u dok je u
+        stvarnosti uvek radio na CPU-u. Ova verzija proverava ono što je
+        stvarno relevantno: `torch.cuda.is_available()` (NVIDIA) ili prisustvo
+        `torch_directml` paketa (AMD/Intel preko DirectML - mora biti
+        eksplicitno instaliran, trenutno NIJE deo requirements.txt jer
+        zahteva dodatne izmene u OCR engine kodu da bi se tenzori stvarno
+        stavili na taj device - vidi napomenu u ocr_engine.py).
 
         Returns:
-            str: "directml" za AMD, "cuda" za NVIDIA, ili "cpu"
+            str: "cuda" (NVIDIA), "directml" (AMD/Intel preko torch_directml),
+                 ili "cpu" (stvarno stanje na većini AMD/Windows mašina danas)
         """
         try:
-            import onnxruntime as ort
-            providers = ort.get_available_providers()
-            if 'DmlExecutionProvider' in providers:
-                return "directml"
-            elif 'CUDAExecutionProvider' in providers:
+            import torch
+            if torch.cuda.is_available():
                 return "cuda"
         except ImportError:
             pass
         except Exception:
             pass
+
+        try:
+            import torch_directml  # noqa: F401 - samo provera da li je instaliran
+            return "directml"
+        except ImportError:
+            pass
+        except Exception:
+            pass
+
         return "cpu"
 
     @classmethod

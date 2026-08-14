@@ -27,6 +27,7 @@ from processors.image_processor import ImageProcessor, PDFProcessor
 from processors.ocr_engine import OCREngineFactory
 from processors.omr_logic import OMRProcessor
 from processors.validators import FieldValidator, postprocess_text
+from processors.handwriting_ocr import HandwritingOCRFactory
 from config import Config
 
 # Konfiguracija loggera
@@ -42,11 +43,14 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# CORS middleware - dozvoli pozive sa Java klijenta
+# CORS middleware - dozvoli pozive sa Java klijenta i Template Editora.
+# allow_credentials=False namerno: Java klijent ne šalje kolačiće/auth
+# header-e, a wildcard origin ("*") + allow_credentials=True je kombinacija
+# koju moderni browseri odbijaju po CORS specifikaciji (vidi ANALIZA-OCR-SERVISA.md 4.9).
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -74,6 +78,17 @@ class OCRFieldResult(BaseModel):
     validation_error: Optional[str] = None
     coordinates: Optional[FieldCoordinates] = None
     omr_detected: Optional[bool] = None
+    # Opcioni predlog ispravke (trenutno samo za JMBG) - NIKAD se sam ne
+    # primenjuje na validated_value, samo signalizira operateru da postoji
+    # jednoznačna moguća ispravka za ručnu proveru.
+    suggested_value: Optional[str] = None
+    # WS6 (eksperimentalno, iza Config.ENABLE_HANDWRITING_TROCR) - alternativni
+    # OCR rezultat (drugo mišljenje) kad se pored EasyOCR-a proba i TrOCR za
+    # rukom pisana polja. alt_* je uvek onaj engine koji NIJE pobedio (nije
+    # korišćen za ocr_value); ocr_engine_used govori koji je stvarno pobedio.
+    alt_value: Optional[str] = None
+    alt_confidence: Optional[float] = None
+    ocr_engine_used: Optional[str] = None
 
 
 class OCRResponse(BaseModel):
@@ -85,6 +100,12 @@ class OCRResponse(BaseModel):
     failed_fields: int
     processing_time_ms: float
     fields: List[OCRFieldResult]
+    # WS4 - koji je mod poravnanja stvarno korišćen za (poslednju obrađenu)
+    # stranicu: "manual" (template.document.alignment_mode nije "anchor"),
+    # "anchor" (sidra uspešno detektovana), ili "manual_fallback" (mod je
+    # bio "anchor" ali nijedno sidro nije pouzdano nađeno, pa se palo na
+    # fiksne koordinate - vidi ImageProcessor.compute_anchor_offset).
+    alignment_mode_used: Optional[str] = None
 
 
 class HealthResponse(BaseModel):
@@ -436,6 +457,12 @@ async def process_image(
         TEMPLATE_WIDTH = 1024
         scale_factor = TARGET_WIDTH / TEMPLATE_WIDTH
 
+        # WS4 - anchor-based poravnanje: opt-in preko template.document.alignment_mode.
+        # Default "manual" = identično ponašanje kao pre (fiksne skalirane koordinate).
+        alignment_mode = template.get('document', {}).get('alignment_mode', 'manual')
+        anchor_elements = template.get('document', {}).get('anchor_elements', {})
+        alignment_mode_used = 'manual'
+
         # Dobavi OCR engine
         if not OCREngineFactory.is_initialized():
             raise HTTPException(
@@ -482,15 +509,21 @@ async def process_image(
                 img = image_processor.preprocess_full_document(img)
                 logger.info(f"[OCR PROCESS] Preprocess završen")
 
+                # WS4 - izračunaj anchor offset JEDNOM za ovu stranu (ne po polju)
+                page_anchor_result = None
+                if alignment_mode == 'anchor':
+                    page_anchor_result = image_processor.compute_anchor_offset(img, anchor_elements, scale_factor)
+                    alignment_mode_used = 'anchor' if page_anchor_result else 'manual_fallback'
+
                 # Filtriraj polja za trenutnu stranicu
                 page_fields = [f for f in template['fields']
                               if f.get('page', 1) == current_page]
                 logger.info(f"[OCR PROCESS] Polja za stranicu {current_page}: {len(page_fields)} (od toga {sum(1 for f in page_fields if f.get('type','').startswith('OMR'))} OMR polja)")
 
+                import copy
                 for field in page_fields:
                     try:
                         # Scale coordinates for High-Res Image - DEEP COPY required!
-                        import copy
                         scaled_field = copy.deepcopy(field)
 
                         if 'coordinates' in scaled_field:
@@ -510,7 +543,11 @@ async def process_image(
                                     opt['y'] = int(opt['y'] * scale_factor)
                                     opt['width'] = int(opt.get('width', 40) * scale_factor)
                                     opt['height'] = int(opt.get('height', 40) * scale_factor)
-                            logger.info(f"[SCALE] Scaled {len(scaled_field['omr_options'])} OMR options for field {scaled_field.get('name')} (scale={scale_factor})")
+                            logger.debug(f"[SCALE] Scaled {len(scaled_field['omr_options'])} OMR options for field {scaled_field.get('name')} (scale={scale_factor})")
+
+                        # WS4 - primeni anchor offset PREKO fiksnog skaliranja (ako je aktivan)
+                        if page_anchor_result:
+                            _apply_anchor_offset_to_field(scaled_field, page_anchor_result)
 
                         field_result = process_single_field(img, scaled_field, ocr_engine)
 
@@ -546,14 +583,21 @@ async def process_image(
             img = image_processor.resize_to_width(img, TARGET_WIDTH)
             img = image_processor.preprocess_full_document(img)
 
+            # WS4 - izračunaj anchor offset JEDNOM za ovu sliku
+            page_anchor_result = None
+            if alignment_mode == 'anchor':
+                page_anchor_result = image_processor.compute_anchor_offset(img, anchor_elements, scale_factor)
+                alignment_mode_used = 'anchor' if page_anchor_result else 'manual_fallback'
+
             # Za slike, obradi samo polja sa page=1 (ili bez page atributa)
             target_page = page_number if page_number else 1
             page_fields = [f for f in template['fields']
                           if f.get('page', 1) == target_page]
 
+            import copy
             for field in page_fields:
                 try:
-                    scaled_field = field.copy()
+                    scaled_field = copy.deepcopy(field)
                     if 'coordinates' in scaled_field:
                         c = scaled_field['coordinates']
                         scaled_field['coordinates'] = {
@@ -562,6 +606,21 @@ async def process_image(
                             'width': int(c['width'] * scale_factor),
                             'height': int(c['height'] * scale_factor)
                         }
+
+                    # CRITICAL: Scale omr_options coordinates! (ranije se skaliralo
+                    # samo u PDF grani - OMR polja na direktno upload-ovanim
+                    # slikama su zbog toga koristila neskalirane, pogrešne
+                    # koordinate opcija dok se ROI kropovao na 2x rezoluciji)
+                    if 'omr_options' in scaled_field:
+                        for opt in scaled_field['omr_options']:
+                            if 'x' in opt and 'y' in opt:
+                                opt['x'] = int(opt['x'] * scale_factor)
+                                opt['y'] = int(opt['y'] * scale_factor)
+                                opt['width'] = int(opt.get('width', 40) * scale_factor)
+                                opt['height'] = int(opt.get('height', 40) * scale_factor)
+
+                    if page_anchor_result:
+                        _apply_anchor_offset_to_field(scaled_field, page_anchor_result)
 
                     field_result = process_single_field(img, scaled_field, ocr_engine)
 
@@ -603,7 +662,8 @@ async def process_image(
             successful_fields=successful,
             failed_fields=failed,
             processing_time_ms=processing_time,
-            fields=results
+            fields=results,
+            alignment_mode_used=alignment_mode_used
         )
 
     except HTTPException:
@@ -619,6 +679,33 @@ async def process_image(
                 os.unlink(tmp_path)
             except Exception:
                 pass
+
+
+def _apply_anchor_offset_to_field(scaled_field: dict, anchor_result: Dict[str, float]) -> None:
+    """
+    Primenjuje anchor offset (translacija + uniformni scale, videti
+    ImageProcessor.compute_anchor_offset) NA VEĆ SKALIRANE koordinate polja
+    (u mestu, menja scaled_field). Poziva se POSLE fiksnog scale_factor
+    skaliranja, kao dodatna korekcija - ne umesto njega.
+    """
+    scale = anchor_result.get('scale', 1.0)
+    dx = anchor_result.get('dx', 0.0)
+    dy = anchor_result.get('dy', 0.0)
+
+    if 'coordinates' in scaled_field:
+        c = scaled_field['coordinates']
+        c['x'] = int(c['x'] * scale + dx)
+        c['y'] = int(c['y'] * scale + dy)
+        c['width'] = int(c['width'] * scale)
+        c['height'] = int(c['height'] * scale)
+
+    if 'omr_options' in scaled_field:
+        for opt in scaled_field['omr_options']:
+            if 'x' in opt and 'y' in opt:
+                opt['x'] = int(opt['x'] * scale + dx)
+                opt['y'] = int(opt['y'] * scale + dy)
+                opt['width'] = int(opt.get('width', 40) * scale)
+                opt['height'] = int(opt.get('height', 40) * scale)
 
 
 def process_single_field(img, field_config: dict, ocr_engine) -> OCRFieldResult:
@@ -671,6 +758,34 @@ def process_single_field(img, field_config: dict, ocr_engine) -> OCRFieldResult:
             # Tekstualna polja
             ocr_value, confidence = ocr_engine.recognize_single_field(processed_roi)
 
+        # WS6 (eksperimentalno) - TrOCR kao "drugo mišljenje" za rukom pisana
+        # polja. Ne dira NUMERIC/JMBG (cifre) niti OMR/SIGNATURE - samo TEXT/
+        # ALPHANUMERIC, i samo ako je Config.ENABLE_HANDWRITING_TROCR uključen
+        # (default False - ništa se ovde ne izvršava dok se eksplicitno ne
+        # uključi, vidi processors/handwriting_ocr.py).
+        alt_value = None
+        alt_confidence = None
+        ocr_engine_used = "easyocr" if field_type in ('TEXT', 'ALPHANUMERIC') else None
+
+        if (Config.ENABLE_HANDWRITING_TROCR and field_type in ('TEXT', 'ALPHANUMERIC')
+                and (field_config.get('handwriting', False) or confidence < Config.HANDWRITING_FALLBACK_CONFIDENCE)):
+            try:
+                trocr_engine = HandwritingOCRFactory.get_instance()
+                trocr_value, trocr_confidence = trocr_engine.recognize(processed_roi)
+
+                logger.info(f"[TrOCR] {field_name}: easyocr='{ocr_value}'({confidence:.2f}) "
+                           f"vs trocr='{trocr_value}'({trocr_confidence:.2f})")
+
+                if trocr_confidence > confidence:
+                    alt_value, alt_confidence = ocr_value, confidence
+                    ocr_value, confidence = trocr_value, trocr_confidence
+                    ocr_engine_used = "trocr"
+                else:
+                    alt_value, alt_confidence = trocr_value, trocr_confidence
+
+            except Exception as e:
+                logger.warning(f"[TrOCR] Fallback neuspešan za {field_name}: {e}")
+
         # Postprocessing
         postprocess_ops = field_config.get('postprocessing', [])
         if postprocess_ops:
@@ -688,12 +803,40 @@ def process_single_field(img, field_config: dict, ocr_engine) -> OCRFieldResult:
             confidence=confidence * 100,  # Konvertuj u procenat
             is_valid=validation_result['is_valid'],
             validation_error=validation_result['error'],
-            coordinates=FieldCoordinates(**coords) if coords else None
+            coordinates=FieldCoordinates(**coords) if coords else None,
+            suggested_value=validation_result.get('suggested_value'),
+            alt_value=alt_value,
+            alt_confidence=(alt_confidence * 100) if alt_confidence is not None else None,
+            ocr_engine_used=ocr_engine_used
         )
 
     except Exception as e:
         logger.error(f"Greska u process_single_field za {field_name}: {e}")
         raise
+
+
+def _extract_omr_roi_and_relative_options(img, coords: dict, omr_options: list):
+    """
+    Iseca ROI za OMR polje i konvertuje apsolutne koordinate opcija u
+    relativne (u odnosu na ROI).
+    """
+    field_x = coords['x']
+    field_y = coords['y']
+
+    roi = image_processor.crop_roi(img, field_x, field_y, coords['width'], coords['height'])
+
+    relative_options = []
+    for opt in omr_options:
+        if 'x' in opt and 'y' in opt:
+            relative_opt = opt.copy()
+            relative_opt['x'] = opt['x'] - field_x
+            relative_opt['y'] = opt['y'] - field_y
+            relative_options.append(relative_opt)
+        else:
+            relative_options.append(opt)
+
+    options_to_use = relative_options if relative_options else omr_options
+    return roi, options_to_use
 
 
 def process_omr_field(img, field_config: dict) -> OCRFieldResult:
@@ -712,56 +855,21 @@ def process_omr_field(img, field_config: dict) -> OCRFieldResult:
     coords = field_config.get('coordinates', {})
     omr_options = field_config.get('omr_options', [])
 
-    logger.info(f"[OMR] === Process OMR Field: {field_name} (type={field_type}) ===")
-    logger.info(f"[OMR] Koordinate polja: x={coords.get('x')}, y={coords.get('y')}, w={coords.get('width')}, h={coords.get('height')}")
-    logger.info(f"[OMR] Broj opcija: {len(omr_options)}")
+    logger.debug(f"[OMR] === Process OMR Field: {field_name} (type={field_type}) ===")
+    logger.debug(f"[OMR] Koordinate polja: x={coords.get('x')}, y={coords.get('y')}, w={coords.get('width')}, h={coords.get('height')}")
+    logger.debug(f"[OMR] Broj opcija: {len(omr_options)}")
 
     try:
-        # Iseci ROI
-        field_x = coords['x']
-        field_y = coords['y']
-
-        roi = image_processor.crop_roi(
-            img,
-            field_x, field_y,
-            coords['width'], coords['height']
-        )
-        logger.info(f"[OMR] ROI extracted, dimensions: {roi.shape}")
-
-        # Convert absolute circle coordinates to RELATIVE (relative to ROI)
-        logger.info(f"[OMR CONVERT] Starting conversion of {len(omr_options)} options")
-
-        relative_options = []
-        has_coords_count = 0
-
-        for opt in omr_options:
-            if 'x' in opt and 'y' in opt:
-                # Absolute coordinates exist - convert to relative
-                has_coords_count += 1
-                relative_opt = opt.copy()
-                relative_opt['x'] = opt['x'] - field_x
-                relative_opt['y'] = opt['y'] - field_y
-                relative_options.append(relative_opt)
-                logger.info(f"[OMR CONVERT] Option '{opt.get('label')}': abs({opt['x']},{opt['y']},{opt.get('width')},{opt.get('height')}) -> rel({relative_opt['x']},{relative_opt['y']},{relative_opt.get('width')},{relative_opt.get('height')})")
-            else:
-                # No x,y - use original options
-                logger.warning(f"[OMR CONVERT] Option '{opt.get('label')}' has NO x,y coordinates!")
-                relative_options.append(opt)
-
-        logger.info(f"[OMR CONVERT] Converted {has_coords_count}/{len(omr_options)} options with coordinates")
-
-        # Koristi relativne koordinate za detekciju
-        options_to_use = relative_options if relative_options else omr_options
+        roi, options_to_use = _extract_omr_roi_and_relative_options(img, coords, omr_options)
+        logger.debug(f"[OMR] ROI extracted, dimensions: {roi.shape}")
 
         if field_type == 'OMR_MULTI':
             # Multi-select
-            logger.info(f"[OMR] Starting multi-select detection...")
             result = omr_processor.detect_multi_select(roi, options_to_use)
             ocr_value = ', '.join(result.get('values', []))
             validated_value = ocr_value
         else:
             # Single-select
-            logger.info(f"[OMR] Starting single-select detection...")
             result = omr_processor.detect_marked_option(roi, options_to_use)
             ocr_value = result.get('value', '') or ''
             validated_value = ocr_value

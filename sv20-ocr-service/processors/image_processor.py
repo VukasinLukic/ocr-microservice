@@ -8,6 +8,7 @@ import cv2
 import numpy as np
 from typing import Tuple, Optional, List, Dict
 import logging
+import base64
 
 logger = logging.getLogger(__name__)
 
@@ -387,6 +388,18 @@ class ImageProcessor:
         gray = self.to_grayscale(img)
         template_gray = self.to_grayscale(anchor_template)
 
+        # Zaštita od poznatog degenerativnog slučaja TM_CCOEFF_NORMED-a: kad
+        # je template skoro potpuno ravan (bez teksture/kontrasta), normalizovana
+        # korelacija deli sa standardnom devijacijom bliskom nuli, pa OpenCV
+        # ume da vrati lažno visoku (nestabilnu) sličnost na bilo kom ravnom
+        # delu slike. Ravan isečak (npr. prazan deo obrasca) ionako nije
+        # koristan kao sidro - ako do ovoga dođe, korisnik treba da izabere
+        # deo slike sa stvarnim štampanim sadržajem (logo, tekst).
+        if float(np.std(template_gray)) < 5.0:
+            logger.warning("Anchor template nema dovoljno teksture/kontrasta (skoro ravna slika) - "
+                          "biraj deo sa stvarnim štampanim sadržajem (logo, naslov...)")
+            return None
+
         result = cv2.matchTemplate(gray, template_gray, cv2.TM_CCOEFF_NORMED)
         min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
 
@@ -399,6 +412,109 @@ class ImageProcessor:
 
         logger.warning(f"Anchor nije detektovan (max confidence: {max_val:.2f})")
         return None
+
+    @staticmethod
+    def _decode_data_uri(data_uri: str) -> np.ndarray:
+        """Dekodira 'data:image/png;base64,...' string u OpenCV (BGR) sliku."""
+        b64data = data_uri.split(',', 1)[1] if ',' in data_uri else data_uri
+        raw = base64.b64decode(b64data)
+        arr = np.frombuffer(raw, np.uint8)
+        img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        if img is None:
+            raise ValueError("Ne mogu da dekodiram anchor sliku iz base64 podataka")
+        return img
+
+    def compute_anchor_offset(self, img: np.ndarray, anchor_elements: Dict,
+                              scale_factor: float = 1.0) -> Optional[Dict]:
+        """
+        Anchor-based poravnanje (WS4 / ANALIZA-OCR-SERVISA.md 4.4): za svako
+        sidro sačuvano preko Template Editora (isečak referentne slike +
+        pozicija u template koordinatnom sistemu), pokušava da ga pronađe na
+        TRENUTNOJ slici preko detect_anchor() (template matching), pa poredi
+        nađenu poziciju sa očekivanom da izračuna translaciju (dx, dy) i,
+        ako su definisana 2 sidra, uniformni scale.
+
+        Namerno pokriva samo translaciju + uniformni scale (ne pun 4-tačkasti
+        perspective warp) - rotacija je već pokrivena postojećim deskew().
+        Ovo je svesno ograničen obim (vidi WS4 u planu): dovoljno da kompenzuje
+        pomeraj/različitu marginu skena, ne i jaku perspektivnu distorziju.
+
+        Args:
+            img: Trenutna (već resize-ovana) slika cele strane
+            anchor_elements: template['document']['anchor_elements'] - rečnik
+                {label: {reference_position: {x,y}, image_data: "data:...", ...}}
+            scale_factor: isti faktor kojim se skaliraju koordinate polja
+                (TARGET_WIDTH/TEMPLATE_WIDTH u server.py) - anchor template
+                slika i referentna pozicija su sačuvane u TEMPLATE_WIDTH
+                (1024px) prostoru, moraju se skalirati na isti način.
+
+        Returns:
+            {'dx', 'dy', 'scale', 'anchors_used'} ili None ako nijedno sidro
+            nije pouzdano detektovano (poziva se fallback na fiksne koordinate).
+        """
+        if not anchor_elements:
+            return None
+
+        detections = []
+        for label, anchor in anchor_elements.items():
+            image_data = anchor.get('image_data')
+            ref_pos = anchor.get('reference_position')
+            if not image_data or not ref_pos:
+                continue
+
+            try:
+                anchor_img = self._decode_data_uri(image_data)
+            except Exception as e:
+                logger.warning(f"[ANCHOR] Ne mogu da dekodiram sidro '{label}': {e}")
+                continue
+
+            new_w = max(1, int(anchor_img.shape[1] * scale_factor))
+            new_h = max(1, int(anchor_img.shape[0] * scale_factor))
+            scaled_anchor_img = cv2.resize(anchor_img, (new_w, new_h), interpolation=cv2.INTER_CUBIC)
+
+            detected = self.detect_anchor(img, scaled_anchor_img)
+            if detected is None:
+                logger.warning(f"[ANCHOR] Sidro '{label}' nije pronađeno na trenutnoj slici")
+                continue
+
+            # VAŽNO: detect_anchor() vraća CENTAR poklapanja, a reference_position
+            # je gornji-levi ugao (ista konvencija kao field.coordinates svuda
+            # drugde u kodu) - moramo porediti centar sa centrom, ne ugao sa
+            # centrom, inače dx/dy izlazi pomeren za pola širine/visine sidra.
+            ref_x = ref_pos['x'] * scale_factor
+            ref_y = ref_pos['y'] * scale_factor
+            ref_center_x = ref_x + scaled_anchor_img.shape[1] / 2.0
+            ref_center_y = ref_y + scaled_anchor_img.shape[0] / 2.0
+
+            detections.append({
+                'label': label,
+                'dx': detected[0] - ref_center_x,
+                'dy': detected[1] - ref_center_y,
+                'detected': detected,
+                'reference': (ref_center_x, ref_center_y),
+            })
+
+        if not detections:
+            logger.warning("[ANCHOR] Nijedno sidro nije pouzdano detektovano - fallback na fiksne koordinate")
+            return None
+
+        dx = sum(d['dx'] for d in detections) / len(detections)
+        dy = sum(d['dy'] for d in detections) / len(detections)
+        scale = 1.0
+
+        if len(detections) >= 2:
+            a, b = detections[0], detections[1]
+            ref_dist = float(np.hypot(b['reference'][0] - a['reference'][0],
+                                      b['reference'][1] - a['reference'][1]))
+            det_dist = float(np.hypot(b['detected'][0] - a['detected'][0],
+                                      b['detected'][1] - a['detected'][1]))
+            if ref_dist > 1e-6:
+                scale = det_dist / ref_dist
+
+        logger.info(f"[ANCHOR] Poravnanje izračunato preko {len(detections)} sidra: "
+                   f"dx={dx:.1f}, dy={dy:.1f}, scale={scale:.3f}")
+
+        return {'dx': dx, 'dy': dy, 'scale': scale, 'anchors_used': len(detections)}
 
     def resize_to_dpi(self, img: np.ndarray,
                       current_dpi: int = 150) -> np.ndarray:
