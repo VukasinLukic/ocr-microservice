@@ -540,6 +540,55 @@ browseri odbijaju - Java klijent ionako ne šalje kolačiće). Per-opcija OMR lo
 path-u (`/api/ocr/process`) prebačeni sa INFO na DEBUG - `/api/debug/omr-rois`
 namerno ostaje na INFO jer je to already-opt-in debug alat.
 
+### ✅ WS7 (novo) — OMR tačnost: ring_score + padding + anchori po strani — GOTOVO, testirano na stvarnom formularu koji si poslao
+
+Posle prethodnog kruga, na tvom stvarnom popunjenom obrascu su 3 od 4 OMR polja na
+strani 1 promašila (`vrsta_studija`, `pol`, `bracni_status` - samo `nacin_finansiranja`
+je proradio). Izvukao sam stvarne isečke preko `/api/debug/omr-rois` i vizuelno + brojčano
+dijagnostikovao **dva odvojena, stvarna uzroka** (ne pretpostavka):
+
+1. **Pravougaonici opcija u Editoru sistematski seku donji deo kruga.** Anotirane slike
+   su to jasno pokazale - kod polja koja rade (nacin_finansiranja) box velikodušno
+   pokriva ceo krug; kod polja koja ne rade, box se završava TAČNO gde krug još traje.
+2. **`fill_ratio`/`edge_score` heuristika ne razlikuje "zaokruženo" od "krivudava
+   odštampana cifra".** Cifra "2" ima prirodno više ivica od cifre "1" i bez ikakvog
+   kruga - to je dovoljno da izgleda "zaokruženije" od stvarno zaokruženog "1" sa
+   tanjom, svetlijom linijom.
+
+**Rešenje** (`processors/omr_logic.py`):
+- Automatski **padding** (25% oko svake opcije, testirano i validno u širokom opsegu
+  0.15-0.50 - nije nabačeno na jedan primer) koji toleriše nepotpuno poravnate
+  pravougaonike.
+- Nov **`ring_score`** - detekcija preko HIJERARHIJE kontura (`cv2.RETR_CCOMP`): traži
+  konturu koja ima DETE (rupu unutra) - strukturalni potpis "ovo nešto OBAVIJA", za
+  razliku od generičke gustine mastila/ivica. `combined_score` koristi `ring_score` kad
+  god ga bar jedna opcija u polju ima; inače fallback na stari fill/edge signal.
+
+**Rezultat na tvom skenu** (`primer.pdf`, obe strane, 12 OMR polja):
+```
+PRE:  4/12 polja tačno detektovano (nekoliko sa lažnim "ne znam")
+POSLE: 12/12 polja tačno detektovano, sva sa 91.6%-100% confidence
+       (vrsta_studija, pol, bracni_status sad TAČNO prepoznaju isto što i ti vidiš na slici)
+```
+Ukupno: 26/37 → **34/37** uspešnih polja na celom obrascu. Dodat regresioni test
+(`test_ring_score_recovers_circle_cut_by_undersized_option_box`) koji simulira tačno
+ovaj scenario (box koji seče krug) da se greška ne ponovi.
+
+**Anchori po strani** (odgovor na "druga strana nema logo/naslov za anchor" i "kockice
+po uglovima"): `template.document.anchor_elements` je sad **po stranici**
+(`{"1": {...}, "2": {...}}`), ne globalno za ceo dokument - Editor automatski migrira
+tvoju već sačuvanu kalibraciju stranice 1. Na stranici 2 (i svakoj sledećoj) Editor
+nudi 2 nova sidra sa default pozicijama u **gornjem levom i gornjem desnom uglu** te
+strane - prevučeš ih na BILO KOJI deo strane 2 koji ima dovoljno kontrasta (ivica
+tabele, broj sekcije, čak i sam ugao papira ako se dovoljno razlikuje od pozadine).
+Fizičke "kockice" nisu izvodljive (menjale bi zvaničan obrazac), ali ovo postiže istu
+svrhu - ti biraš TAČKU oslonca na svakoj strani posebno, isti alat, samo sad zna da
+strane nisu iste. Ako sidro na nekoj strani ne uspe da se nađe (npr. slabo izabran
+deo), sistem i dalje gracioznо pada na `manual_fallback` - ništa se ne pokvari.
+Potvrđeno na `primer.pdf`: stranica 1 i dalje javlja `alignment_mode_used: "anchor"`
+(tvoja postojeća kalibracija radi nepromenjeno), stranica 2 ispravno pada na
+`manual_fallback` dok ne dodaš njena sidra - obe strane i dalje daju tačne rezultate.
+
 ### Preostalo van dometa ovog kruga (namerno)
 
 - **4.8 (širi test coverage)**: delimično pokriveno usput - 13 pytest testova sada

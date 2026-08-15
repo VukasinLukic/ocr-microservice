@@ -400,7 +400,7 @@
                     });
                 }
 
-                initAnchors();
+                initAnchorsForPage(1);
                 setAlignmentMode(alignmentMode); // sync dugmadi sa učitanim stanjem
 
                 renderFieldList();
@@ -411,23 +411,53 @@
             showLoader(false);
         }
 
-        // WS4: Anchor mode - inicijalizacija/toggle/edit
-        function initAnchors() {
+        // WS4: Anchor mode - inicijalizacija/toggle/edit, PO STRANI (stranica 2
+        // po pravilu nema isti logo/naslov kao stranica 1, pa sidra ne mogu biti
+        // zajednička za ceo dokument).
+        function _anchorsLookPageKeyed(allAnchors) {
+            const keys = Object.keys(allAnchors);
+            if (keys.length === 0) return true; // prazno - tretiraj kao "već po strani"
+            return keys.every(k => {
+                const v = allAnchors[k];
+                return v && typeof v === 'object' && !('image_data' in v) && !('reference_position' in v);
+            });
+        }
+
+        function _migrateAnchorsToPageKeyed(allAnchors) {
+            if (_anchorsLookPageKeyed(allAnchors)) return { ...allAnchors };
+            // Stari "flat" oblik (bez podele po strani) - važio je samo za
+            // stranicu 1, premesti ga tamo da se ne izgubi postojeća kalibracija.
+            return { "1": allAnchors };
+        }
+
+        function initAnchorsForPage(pageNum) {
             if (!template.document) template.document = {};
             alignmentMode = template.document.alignment_mode || 'manual';
 
-            const existing = template.document.anchor_elements || {};
-            // Default pozicije preuzete iz originalnog (do sada neiskorišćenog)
-            // document.anchor_elements.<label>.approximate_position u template-u.
-            const defaults = {
-                logo: { x: 50, y: 30, width: 150, height: 60 },
-                title: { x: 650, y: 30, width: 220, height: 60 },
-            };
+            const allAnchors = template.document.anchor_elements || {};
+            const pageAnchors = _anchorsLookPageKeyed(allAnchors)
+                ? (allAnchors[String(pageNum)] || {})
+                : (pageNum === 1 ? allAnchors : {});
+
+            // Default pozicije: za stranicu 1 iz originalnog (ranije
+            // neiskorišćenog) document.anchor_elements.<label>.approximate_position
+            // u template-u. Za ostale strane nema poznatog logoa/naslova - default
+            // je gore-levi/gore-desni ugao strane, koje korisnik prevuče na bilo
+            // koji stabilan štampan sadržaj (uključujući same uglove obrasca, ako
+            // tu ima dovoljno kontrasta) preko istog alata.
+            const defaults = pageNum === 1
+                ? {
+                    logo: { x: 50, y: 30, width: 150, height: 60 },
+                    title: { x: 650, y: 30, width: 220, height: 60 },
+                }
+                : {
+                    gornji_levi_ugao: { x: 40, y: 20, width: 150, height: 60 },
+                    gornji_desni_ugao: { x: TARGET_WIDTH - 190, y: 20, width: 150, height: 60 },
+                };
 
             activeAnchors = Object.keys(defaults).map(label => {
-                const e = existing[label];
+                const e = pageAnchors[label];
                 if (e && e.reference_position) {
-                    // Nova šema (već sačuvana preko ovog editora)
                     return {
                         label,
                         x: e.reference_position.x,
@@ -437,7 +467,7 @@
                         image_data: e.image_data || null,
                     };
                 }
-                // Stara šema (approximate_position, samo tekst) ili ništa - koristi default
+                // Stara šema (approximate_position, samo tekst) ili ništa - default
                 const approx = e && e.approximate_position;
                 return {
                     label,
@@ -497,13 +527,13 @@
 
         function saveCurrentAnchors() {
             // Iseca trenutnu referentnu sliku na svakom anchor pravougaoniku i
-            // čuva kao base64 PNG u template.document.anchor_elements - isti
-            // "auto-save pri izlasku/save-u" obrazac kao saveCurrentCircles().
+            // čuva kao base64 PNG u template.document.anchor_elements[trenutna
+            // strana] - isti "auto-save pri izlasku/save-u/promeni strane"
+            // obrazac kao saveCurrentCircles(), samo po strani (WS4 nastavak).
             if (!template) return;
             if (!template.document) template.document = {};
             if (!image || !image.src) {
-                console.warn('[ANCHOR] Nema učitane referentne slike - anchor podaci se ne menjaju');
-                return;
+                return; // nema učitane referentne slike - anchor podaci se ne menjaju
             }
 
             const anchorData = {};
@@ -523,8 +553,10 @@
                 };
             });
 
-            template.document.anchor_elements = anchorData;
-            console.log('[ANCHOR] Sačuvano', Object.keys(anchorData).length, 'sidara');
+            const allAnchors = _migrateAnchorsToPageKeyed(template.document.anchor_elements || {});
+            allAnchors[String(currentPage)] = anchorData;
+            template.document.anchor_elements = allAnchors;
+            console.log('[ANCHOR] Sačuvano', Object.keys(anchorData).length, 'sidara za stranicu', currentPage);
         }
 
         // Image Handling (with PDF support)
@@ -534,6 +566,15 @@
 
         async function loadPage(pageNum) {
             console.log(`[DEBUG] Loading page ${pageNum}`);
+
+            // WS4: sačuvaj sidra TRENUTNE (stare) strane PRE nego što `image`
+            // promenimo ispod - mora biti ovde, ne unutar updateFieldVisibility,
+            // jer se `image` reassign-uje sinhrono pre nego što nova slika
+            // stigne da se učita (onload je async).
+            if (pageNum !== currentPage) {
+                saveCurrentAnchors();
+            }
+
             if (!isPdf) {
                 // If not PDF (or no file uploaded), we just update fields
                 updateFieldVisibility(pageNum);
@@ -555,7 +596,6 @@
                     canvas.width = TARGET_WIDTH;
                     const aspect = image.height / image.width;
                     canvas.height = TARGET_WIDTH * aspect;
-                    currentPage = pageNum;
                     updateFieldVisibility(pageNum);
                     draw();
                 };
@@ -572,6 +612,8 @@
 
         function updateFieldVisibility(pageNum) {
             currentPage = pageNum;
+            initAnchorsForPage(pageNum);
+
             // Update visibility based on page number
             if (template) {
                 template.fields.forEach(f => {
@@ -583,7 +625,7 @@
             // Update buttons active state
             document.querySelectorAll('.filters .btn').forEach(b => b.classList.remove('btn-primary'));
             // This is a bit hacky selector, but works for now
-            // const btn = document.querySelector(...) 
+            // const btn = document.querySelector(...)
 
             renderFieldList();
             draw();

@@ -154,19 +154,73 @@ def test_real_scan_regression_two_option_field_with_clear_winner():
     assert result['confidence'] > 0.5
 
 
-def test_real_scan_regression_ambiguous_field_stays_unmarked():
+def test_decide_single_stays_honest_when_scores_are_truly_tied():
     """
-    Stvarni brojevi za polje 'pol' (2 opcije) sa primer.pdf, gde su obe
-    opcije imale skoro identičan combined_score (0.2469 vs 0.2503) - ili
-    zaokruživanje nije jasno vidljivo, ili ROI koordinate nisu tačno
-    poravnate sa krugom. U oba slučaja, sistem NE SME da izmisli pobednika -
-    is ovo mora ostati "nedovoljno pouzdano", ne nasumično 70% kao pre.
+    Testira _decide_single u izolaciji (ne extract_option_scores): kad su
+    dva combined_score-a skoro identična, sistem NE SME da izmisli pobednika.
+
+    NAPOMENA: originalna verzija ovog testa je koristila STARE fill/edge
+    brojeve za polje 'pol' sa primer.pdf (0.2469 vs 0.2503) i tvrdila da je
+    to polje "istinski dvosmisleno". Kasnija vizuelna inspekcija stvarnog
+    skena je pokazala da je "pol" zapravo bio JASNO zaokružen - blizak
+    fill/edge rezultat je bio ARTEFAKT stare heuristike (koja ne razlikuje
+    "kriva odštampana cifra" od "zaokružena cifra"), ne stvarna
+    dvosmislenost. Uvođenjem ring_score-a (vidi test ispod) to polje se sada
+    ispravno detektuje. Ovaj test ostaje koristan za _decide_single samu po
+    sebi - AKO combined_score-ovi jesu tačno izjednačeni, mora ostati honest.
     """
     processor = OMRProcessor()
-    result = _decide_single_from_raw(processor, [0.2469, 0.2503], labels=['M', 'Z'])
+    result = _decide_single_from_raw(processor, [0.2500, 0.2503], labels=['M', 'Z'])
 
     assert result['value'] is None
     assert result['confidence'] < 0.2
+
+
+def test_ring_score_recovers_circle_cut_by_undersized_option_box():
+    """
+    Regresioni test za pravi bag nađen na stvarnom ŠV-20 skenu (polja 'pol',
+    'bracni_status', 'vrsta_studija'): korisnik je u Template Editoru ručno
+    nacrtao pravougaonik oko opcije koji je SEKAO donji deo stvarnog
+    rukom-nacrtanog kruga. Stari fill_ratio/edge_score signal je na te
+    (nepotpune) krugove reagovao SLABIJE nego na susednu odštampanu cifru
+    bez ikakvog kruga (npr. kriva cifra "2" ima prirodno više ivica od prave
+    linije "1") - pogrešan pobednik.
+
+    Ispravka: (1) automatski padding oko svake opcije (OPTION_PADDING_FRACTION)
+    koji toleriše ovakvo nepotpuno poravnat pravougaonik, i (2) ring_score -
+    struktuиran signal (hijerarhija kontura - "postoji li zatvoren prsten
+    koji nešto obavija") koji ne meša "zaokruženo" sa "krivudava cifra".
+    """
+    processor = OMRProcessor()
+
+    width, height = 400, 200
+    img = np.ones((height, width), dtype=np.uint8) * 255
+    option_w = width // 2
+
+    for i, num in enumerate(['1', '2']):
+        cx = i * option_w + option_w // 2
+        cy = height // 2
+        cv2.putText(img, num, (cx - 10, cy + 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 0), 2)
+
+    # Krug oko opcije "1" - CRTAN preko cele svoje prirodne veličine
+    circle_cx, circle_cy = option_w // 2, height // 2
+    circle_r = (option_w // 2 - 5, height // 2 - 10)
+    cv2.ellipse(img, (circle_cx, circle_cy), circle_r, 0, 0, 360, (0, 0, 0), 2)
+
+    # Ali DEKLARISANI box za opciju "1" je NAMERNO malo manji od kruga - seče
+    # njegov donji rub (realan iznos greške izmeren na stvarnom skenu, ne
+    # ekstreman slučaj).
+    cut_height = int(height * 0.8)  # seče donjih ~15-20% kruga
+
+    options = [
+        {'label': '1', 'value': 'Opcija 1', 'x': 0, 'y': 0, 'width': option_w, 'height': cut_height},
+        {'label': '2', 'value': 'Opcija 2', 'x': option_w, 'y': 0, 'width': option_w, 'height': height},
+    ]
+
+    result = processor.detect_marked_option(img, options)
+
+    assert result['value'] == 'Opcija 1'
+    assert result['confidence'] > 0.5
 
 
 def _run_all():

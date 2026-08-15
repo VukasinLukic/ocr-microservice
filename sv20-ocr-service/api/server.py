@@ -460,7 +460,7 @@ async def process_image(
         # WS4 - anchor-based poravnanje: opt-in preko template.document.alignment_mode.
         # Default "manual" = identično ponašanje kao pre (fiksne skalirane koordinate).
         alignment_mode = template.get('document', {}).get('alignment_mode', 'manual')
-        anchor_elements = template.get('document', {}).get('anchor_elements', {})
+        anchor_elements_raw = template.get('document', {}).get('anchor_elements', {})
         alignment_mode_used = 'manual'
 
         # Dobavi OCR engine
@@ -509,10 +509,13 @@ async def process_image(
                 img = image_processor.preprocess_full_document(img)
                 logger.info(f"[OCR PROCESS] Preprocess završen")
 
-                # WS4 - izračunaj anchor offset JEDNOM za ovu stranu (ne po polju)
+                # WS4 - izračunaj anchor offset JEDNOM za ovu stranu (ne po polju).
+                # Sidra su PO STRANI (stranica 2 obično nema isti logo/naslov
+                # kao stranica 1) - vidi _get_page_anchor_elements.
                 page_anchor_result = None
                 if alignment_mode == 'anchor':
-                    page_anchor_result = image_processor.compute_anchor_offset(img, anchor_elements, scale_factor)
+                    page_anchors = _get_page_anchor_elements(anchor_elements_raw, current_page)
+                    page_anchor_result = image_processor.compute_anchor_offset(img, page_anchors, scale_factor)
                     alignment_mode_used = 'anchor' if page_anchor_result else 'manual_fallback'
 
                 # Filtriraj polja za trenutnu stranicu
@@ -583,16 +586,17 @@ async def process_image(
             img = image_processor.resize_to_width(img, TARGET_WIDTH)
             img = image_processor.preprocess_full_document(img)
 
-            # WS4 - izračunaj anchor offset JEDNOM za ovu sliku
-            page_anchor_result = None
-            if alignment_mode == 'anchor':
-                page_anchor_result = image_processor.compute_anchor_offset(img, anchor_elements, scale_factor)
-                alignment_mode_used = 'anchor' if page_anchor_result else 'manual_fallback'
-
             # Za slike, obradi samo polja sa page=1 (ili bez page atributa)
             target_page = page_number if page_number else 1
             page_fields = [f for f in template['fields']
                           if f.get('page', 1) == target_page]
+
+            # WS4 - izračunaj anchor offset JEDNOM za ovu sliku (sidra po strani)
+            page_anchor_result = None
+            if alignment_mode == 'anchor':
+                page_anchors = _get_page_anchor_elements(anchor_elements_raw, target_page)
+                page_anchor_result = image_processor.compute_anchor_offset(img, page_anchors, scale_factor)
+                alignment_mode_used = 'anchor' if page_anchor_result else 'manual_fallback'
 
             import copy
             for field in page_fields:
@@ -679,6 +683,37 @@ async def process_image(
                 os.unlink(tmp_path)
             except Exception:
                 pass
+
+
+def _get_page_anchor_elements(anchor_elements_raw: dict, page: int) -> dict:
+    """
+    Vraća sidra definisana za dati `page`. Podržava dva oblika
+    template.document.anchor_elements:
+
+    1. NOVI, po strani: {"1": {"logo": {...}, "title": {...}}, "2": {...}}
+    2. STARI, "flat" (bez podele po strani, kako Editor pre WS4-page-aware
+       izmene čuva ili kako izgleda originalni statički template):
+       {"logo": {...}, "title": {...}} - ovo se tretira kao da važi SAMO za
+       stranicu 1 (nazad-kompatibilno sa već sačuvanim template.json
+       fajlovima), jer je to jedina strana za koju su ta sidra i kalibrisana.
+
+    Stranica 2 (i dalje) obično nemaju isti logo/naslov kao stranica 1 - zato
+    sidra MORAJU biti po strani, ne globalna za ceo dokument (ANALIZA-OCR-
+    SERVISA.md, nastavak WS4).
+    """
+    if not anchor_elements_raw:
+        return {}
+
+    is_page_keyed = all(
+        isinstance(v, dict) and 'image_data' not in v and 'reference_position' not in v
+        for v in anchor_elements_raw.values()
+    )
+
+    if is_page_keyed:
+        return anchor_elements_raw.get(str(page), {})
+
+    # Stari "flat" oblik - važi samo za stranicu 1
+    return anchor_elements_raw if page == 1 else {}
 
 
 def _apply_anchor_offset_to_field(scaled_field: dict, anchor_result: Dict[str, float]) -> None:

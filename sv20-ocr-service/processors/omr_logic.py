@@ -88,36 +88,50 @@ class OMRProcessor:
             'method': 'no_precise_coords'
         }
 
+    # Automatski margin dodat oko svake opcije pre analize (kao % od njene
+    # sopstvene širine/visine) - toleriše to što su pravougaonici ručno
+    # nacrtani u Template Editoru retko piksel-savršeno poravnati sa stvarnim
+    # krugom (u praksi seku deo prstena). Testirano na stvarnim skenovima da
+    # rezultat NIJE osetljiv na tačnu vrednost u širokom opsegu (0.15-0.50
+    # daju identičan tačan odgovor - vidi ANALIZA-OCR-SERVISA.md) - 0.25 je
+    # sredina tog opsega, ne broj biran "na oko" za jedan primer.
+    OPTION_PADDING_FRACTION = 0.25
+
     def extract_option_scores(self, gray: np.ndarray, options: List[Dict]) -> List[Dict]:
         """
-        Čista ekstrakcija signala po opciji (fill_ratio, edge_score,
-        combined_score) - BEZ ikakve odluke o tome šta je "označeno". Tu
-        odluku prave `_decide_single`/`_decide_multi` na osnovu statistike
-        (medijana/MAD) cele strane, ne ova funkcija - videti
-        `compute_global_stats`.
+        Čista ekstrakcija signala po opciji - BEZ ikakve odluke o tome šta je
+        "označeno". Tu odluku prave `_decide_single`/`_decide_multi` na
+        osnovu razmerne (ratio) mere unutar polja - videti
+        `_relative_margin_confidence`.
 
-        Algoritam po opciji:
-        1. Izvuci ROI (x, y, w, h) - CELE dimenzije koje je korisnik namestio
-           u Template Editoru, bez smanjivanja.
-        2. Binarizuj (adaptivni threshold + blur da spoji linije zaokruživanja).
-        3. combined_score = fill_ratio * 0.6 + edge_score * 0.4
-           (fill_ratio = % "mastila" u ROI-ju, edge_score = da li ivice ROI-ja
-           imaju kružnu strukturu - vidi _analyze_circle_edges)
+        Za svaku opciju računa:
+        - `ring_score`: da li postoji ZATVOREN PRSTEN (rukom nacrtan krug/
+          oval) koji OBAVIJA nešto - preko hijerarhije kontura (vidi
+          `_ring_score`). Ovo je primarni signal jer je strukturalno
+          specifičan za "zaokruženo" (za razliku od generičke gustine
+          mastila/ivica, koja ne razlikuje "krivudava odštampana cifra
+          ispunjava ROI" od "cifra je zaokružena" - ovo je stvarno pomešalo
+          rezultate na realnim skenovima dok se nije uveo ring_score).
+        - `fill_ratio`/`edge_score`: stari signali, i dalje računati i
+          korišćeni kao FALLBACK (u `combined_score`) za polja gde NIJEDNA
+          opcija nema detektovan prsten (npr. ako je marka umesto kruga
+          checkmark ili iks - ovaj obrazac po specifikaciji koristi
+          isključivo zaokruživanje, ali fallback ne škodi).
         """
         logger.info(f"[OMR SCORES] Analiziram {len(options)} opcija sa preciznim koordinatama")
 
-        # Binarizacija - crna pozadina, belo "mastilo"
+        # Binarizacija cele strane polja - koristi se za fill_ratio/edge_score
+        # (fallback signal). ring_score radi na SIROVOM grayscale isečku po
+        # opciji (sopstvena lokalna binarizacija) - vidi _ring_score.
         binary = cv2.adaptiveThreshold(
             gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
             cv2.THRESH_BINARY_INV, 11, 2
         )
-
-        # Malo blur-a da spojimo linije zaokruživanja
         binary = cv2.GaussianBlur(binary, (3, 3), 0)
         _, binary = cv2.threshold(binary, 127, 255, cv2.THRESH_BINARY)
 
         h, w = gray.shape[:2]
-        results = []
+        raw = []
 
         for i, option in enumerate(options):
             x = int(option.get('x', 0))
@@ -125,37 +139,110 @@ class OMRProcessor:
             opt_w = int(option.get('width', 40))
             opt_h = int(option.get('height', 40))
 
-            # FULL RECTANGLE - koristi CELE dimenzije koje je korisnik namestio u editoru
-            x1 = max(0, x)
-            y1 = max(0, y)
-            x2 = min(w, x + opt_w)
-            y2 = min(h, y + opt_h)
+            pad_x = int(opt_w * self.OPTION_PADDING_FRACTION)
+            pad_y = int(opt_h * self.OPTION_PADDING_FRACTION)
+
+            x1 = max(0, x - pad_x)
+            y1 = max(0, y - pad_y)
+            x2 = min(w, x + opt_w + pad_x)
+            y2 = min(h, y + opt_h + pad_y)
 
             if x2 <= x1 or y2 <= y1:
                 logger.warning(f"[OMR SCORES] Opcija {option.get('label')} ima nevalidne koordinate: ({x1},{y1})-({x2},{y2})")
                 continue
 
-            roi = binary[y1:y2, x1:x2]
+            bin_roi = binary[y1:y2, x1:x2]
+            gray_roi = gray[y1:y2, x1:x2]
 
-            white_pixels = cv2.countNonZero(roi)
-            total_pixels = roi.shape[0] * roi.shape[1]
+            white_pixels = cv2.countNonZero(bin_roi)
+            total_pixels = bin_roi.shape[0] * bin_roi.shape[1]
             fill_ratio = white_pixels / total_pixels if total_pixels > 0 else 0
 
-            edge_score = self._analyze_circle_edges(roi)
-            combined_score = fill_ratio * 0.6 + edge_score * 0.4
+            edge_score = self._analyze_circle_edges(bin_roi)
+            ring_score = self._ring_score(gray_roi)
 
-            results.append({
+            raw.append({
                 'label': option.get('label', str(i + 1)),
                 'value': option.get('value', option.get('label', str(i + 1))),
                 'fill_ratio': fill_ratio,
                 'edge_score': edge_score,
-                'combined_score': combined_score,
+                'ring_score': ring_score,
                 'roi_size': (opt_w, opt_h)
             })
 
-            logger.debug(f"[OMR SCORES] {option.get('label')}: fill={fill_ratio:.3f}, edge={edge_score:.3f}, combined={combined_score:.3f}")
+        # Ako BAR JEDNA opcija u ovom polju ima detektovan prsten, koristi
+        # ring_score kao combined_score za SVE opcije u polju (dosledna
+        # skala). Inače, fallback na stari fill/edge heuristiku.
+        use_ring = any(r['ring_score'] > 0 for r in raw)
+
+        results = []
+        for r in raw:
+            combined_score = r['ring_score'] if use_ring else (r['fill_ratio'] * 0.6 + r['edge_score'] * 0.4)
+            r['combined_score'] = combined_score
+            r['scoring_method'] = 'ring' if use_ring else 'fill_edge'
+            results.append(r)
+            logger.debug(f"[OMR SCORES] {r['label']}: ring={r['ring_score']:.3f} fill={r['fill_ratio']:.3f} "
+                        f"edge={r['edge_score']:.3f} combined={combined_score:.3f} ({r['scoring_method']})")
 
         return results
+
+    def _ring_score(self, roi_gray: np.ndarray) -> float:
+        """
+        Detektuje da li ROI sadrži ZATVOREN PRSTEN (rukom nacrtan krug/oval)
+        koji OBAVIJA nešto (cifru) - preko HIJERARHIJE kontura (RETR_CCOMP):
+        prava zaokružena cifra daje spoljnu konturu koja ima DETE (rupu
+        unutra, gde je sama cifra). Ovo je strukturalno specifičan signal za
+        "zaokruženo", za razliku od fill_ratio/edge_score koji ne razlikuju
+        "krivudava odštampana cifra ispunjava ROI" (npr. cifra "2" ima
+        prirodno više ivica od cifre "1" i bez ikakvog kruga) od "cifra je
+        stvarno zaokružena" - potvrđeno na stvarnim ŠV-20 skenovima gde je
+        fill/edge heuristika 3 od 4 puta pogrešila, a ring_score sva 4/4
+        puta tačno pogodio (vidi ANALIZA-OCR-SERVISA.md).
+
+        Returns:
+            0.0 ako nije nađen prsten, inače score > 0 (veći = "čistiji"
+            prsten: kružniji oblik, aspect ratio bliži 1, veće pokriva ROI).
+        """
+        binary = cv2.adaptiveThreshold(
+            roi_gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY_INV, 11, 2
+        )
+        binary = cv2.GaussianBlur(binary, (3, 3), 0)
+        _, binary = cv2.threshold(binary, 127, 255, cv2.THRESH_BINARY)
+
+        contours, hierarchy = cv2.findContours(binary, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+        if hierarchy is None:
+            return 0.0
+
+        roi_area = roi_gray.shape[0] * roi_gray.shape[1]
+        if roi_area == 0:
+            return 0.0
+
+        best_score = 0.0
+        for i, cnt in enumerate(contours):
+            area = cv2.contourArea(cnt)
+            if area < roi_area * 0.05:
+                continue
+
+            # Da li ova kontura ima DETE (rupu unutra)? To je potpis prstena
+            # koji nešto obavija - hierarchy[0][i] = [next, prev, child, parent]
+            has_child = hierarchy[0][i][2] != -1
+            if not has_child:
+                continue
+
+            perimeter = cv2.arcLength(cnt, True)
+            if perimeter == 0:
+                continue
+
+            circularity = 4 * np.pi * area / (perimeter * perimeter)
+            x, y, bw, bh = cv2.boundingRect(cnt)
+            aspect = min(bw, bh) / max(bw, bh) if max(bw, bh) > 0 else 0
+            coverage = area / roi_area
+
+            score = circularity * aspect * min(coverage * 3, 1.0)
+            best_score = max(best_score, score)
+
+        return best_score
 
     @staticmethod
     def _relative_margin_confidence(score: float, reference: float) -> float:
