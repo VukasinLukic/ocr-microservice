@@ -55,8 +55,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount static files for Template Creator
-app.mount("/editor", StaticFiles(directory="static", html=True), name="static")
+# Mount static files for Template Creator (absolute path — radi bez obzira iz
+# kog direktorijuma se pokreće uvicorn)
+_static_dir = Path(__file__).parent.parent / "static"
+if _static_dir.exists():
+    app.mount("/editor", StaticFiles(directory=str(_static_dir), html=True), name="static")
+else:
+    logger.warning(f"Static direktorijum nije pronađen: {_static_dir} — editor nije dostupan")
 
 
 # Pydantic modeli za response

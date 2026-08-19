@@ -12,14 +12,10 @@ python-multipart>=0.0.6
 
 # OCR Engine
 easyocr>=1.7.1
+# torch se instalira automatski kao zavisnost easyocr-a
 
-# NAPOMENA (ANALIZA-OCR-SERVISA.md 4.3): onnxruntime-directml NE ubrzava
-# EasyOCR - EasyOCR interno koristi PyTorch (torch.cuda), ne onnxruntime.
-# Ovaj paket je ovde jer je originalno tako planirano, ali trenutno ne radi
-# ništa za OCR brzinu. Stvarna AMD GPU akceleracija bi zahtevala
-# torch-directml (nije instaliran) + izmene u ocr_engine.py, ili prelazak na
-# OCR engine koji stvarno koristi ONNX (npr. OnnxTR) - vidi analizu.
-onnxruntime-directml>=1.20.0
+# onnxruntime-directml je uklonjen: ne ubrzava EasyOCR (koristi PyTorch, ne ONNX)
+# i može da blokira pip install na nekim sistemima. Vidi ANALIZA-OCR-SERVISA.md 4.3.
 
 # Image Processing
 opencv-python>=4.9.0.80
