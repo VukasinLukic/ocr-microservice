@@ -7,28 +7,38 @@ echo.
 
 cd /d "%~dp0sv20-ocr-service"
 
-:: Provjeri Python
-python --version >nul 2>&1
-if errorlevel 1 (
-    echo [GRESKA] Python nije pronađen. Instaliraj Python 3.9+
+:: Nadji Python (python/python3 mogu biti Windows Store aliasi koji ne rade)
+set "PY="
+py --version >nul 2>&1 && set "PY=py"
+if not defined PY (
+    python --version >nul 2>&1 && set "PY=python"
+)
+if not defined PY (
+    python3 --version >nul 2>&1 && set "PY=python3"
+)
+if not defined PY (
+    echo [GRESKA] Python nije pronađen. Instaliraj Python 3.9+ sa https://www.python.org/downloads/
+    echo NAPOMENA: ako imas Python instaliran ali i dalje vidis ovu poruku, moguce je
+    echo da "python" u PATH-u pokazuje na Microsoft Store alias. Iskljuci ga u:
+    echo Settings ^> Apps ^> Advanced app settings ^> App execution aliases.
     pause
     exit /b 1
 )
 
 echo Python verzija:
-python --version
+%PY% --version
 echo.
 
 :: Upgrade pip
 echo Azuriranje pip-a...
-python -m pip install --upgrade pip
+%PY% -m pip install --upgrade pip
 
 echo.
 echo Instaliranje zavisnosti iz requirements.txt...
 echo NAPOMENA: easyocr ce preuzeti PyTorch (~1GB). Sacekaj...
 echo.
 
-pip install -r requirements.txt
+%PY% -m pip install -r requirements.txt
 
 if errorlevel 1 (
     echo.
